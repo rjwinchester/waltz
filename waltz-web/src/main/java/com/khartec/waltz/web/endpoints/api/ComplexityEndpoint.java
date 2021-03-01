@@ -18,8 +18,11 @@
 
 package com.khartec.waltz.web.endpoints.api;
 
-import com.khartec.waltz.model.complexity.ComplexityRating;
-import com.khartec.waltz.service.complexity.ComplexityRatingService;
+import com.khartec.waltz.model.EntityKind;
+import com.khartec.waltz.model.IdSelectionOptions;
+import com.khartec.waltz.model.complexity.Complexity;
+import com.khartec.waltz.model.complexity.ComplexitySummary;
+import com.khartec.waltz.service.complexity.ComplexityService;
 import com.khartec.waltz.web.DatumRoute;
 import com.khartec.waltz.web.ListRoute;
 import com.khartec.waltz.web.endpoints.Endpoint;
@@ -27,8 +30,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import static com.khartec.waltz.web.WebUtilities.*;
-import static com.khartec.waltz.web.endpoints.EndpointUtilities.getForDatum;
-import static com.khartec.waltz.web.endpoints.EndpointUtilities.postForList;
+import static com.khartec.waltz.web.endpoints.EndpointUtilities.*;
 
 
 @Service
@@ -36,27 +38,39 @@ public class ComplexityEndpoint implements Endpoint {
 
     private static final String BASE_URL = mkPath("api", "complexity");
 
-    private final ComplexityRatingService service;
+    private final ComplexityService complexityService;
 
 
     @Autowired
-    public ComplexityEndpoint(ComplexityRatingService service) {
-        this.service = service;
+    public ComplexityEndpoint(ComplexityService complexityService) {
+        this.complexityService = complexityService;
     }
 
 
     @Override
     public void register() {
-        String getForAppPath = mkPath(BASE_URL, "application", ":id");
-        String findForAppIdSelectorPath = BASE_URL;
-        String rebuildPath = mkPath(BASE_URL, "rebuild");
+        String findByEntityRefPath = mkPath(BASE_URL, "entity", "kind", ":kind", "id", ":id");
+        String findBySelectorPath = mkPath(BASE_URL, "target-kind", ":kind");
+        String findComplexitySummaryForSelectorPath = mkPath(BASE_URL, "complexity-kind", ":id", "target-kind", ":kind");
 
-        DatumRoute<ComplexityRating> getForAppRoute = (request, response) -> service.getForApp(getId(request));
-        ListRoute<ComplexityRating> findForAppIdSelectorRoute = (request, response) -> service.findForAppIdSelector(readIdSelectionOptionsFromBody(request));
-        DatumRoute<Integer> rebuildRoute = (request, response) -> service.rebuild();
+        ListRoute<Complexity> findByEntityRefRoute = (request, response) -> complexityService
+                .findByEntityReference(getEntityReference(request));
 
-        getForDatum(getForAppPath, getForAppRoute);
-        postForList(findForAppIdSelectorPath, findForAppIdSelectorRoute);
-        getForDatum(rebuildPath, rebuildRoute);
+        ListRoute<Complexity> findBySelectorRoute = (request, response) -> complexityService
+                .findBySelector(getKind(request), readIdSelectionOptionsFromBody(request));
+
+        DatumRoute<ComplexitySummary> findComplexitySummaryForSelectorRoute = (request, response) -> {
+            long costKindId = getId(request);
+            EntityKind targetKind = getKind(request);
+            IdSelectionOptions selectionOptions = readIdSelectionOptionsFromBody(request);
+            Integer limit = getLimit(request).orElse(15);
+
+            return complexityService
+                    .findComplexitySummaryForSelector(costKindId, targetKind, selectionOptions, limit);
+        };
+
+        getForList(findByEntityRefPath, findByEntityRefRoute);
+        postForList(findBySelectorPath, findBySelectorRoute);
+        postForDatum(findComplexitySummaryForSelectorPath, findComplexitySummaryForSelectorRoute);
     }
 }

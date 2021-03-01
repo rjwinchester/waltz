@@ -18,6 +18,7 @@
 
 import {initialiseData} from "../../../common";
 import template from "./assessment-editor.html";
+import * as _ from "lodash";
 
 
 const bindings = {
@@ -37,6 +38,7 @@ const modes = {
 const initialState = {
     mode: modes.VIEW,
     isEditable: false,
+    isRemovable: false,
     readOnlyReason: null,
     working: null
 };
@@ -56,7 +58,7 @@ function controller(notification, userService) {
                 vm.assessment.definition.id,
                 vm.working.ratingId,
                 vm.working.comment)
-            .then(() => vm.onClose());
+            .then(() => vm.onCancelEdit());
     };
 
 
@@ -70,7 +72,7 @@ function controller(notification, userService) {
     };
 
 
-    vm.$onInit = () => {
+    vm.$onChanges = () => {
         const definition = vm.assessment.definition;
         const readOnly = definition.isReadOnly;
 
@@ -85,22 +87,27 @@ function controller(notification, userService) {
                 if (readOnly) {
                     // assessment is readonly therefore cannot be edited
                     vm.isEditable = false;
+                    vm.isRemovable = false;
                     vm.readOnlyReason = "This assessment is marked as read only";
                 } else if (! _.isEmpty(permittedRole)) {
                     // permitted role is not empty therefore need to check user roles
                     if (userService.hasRole(u, permittedRole)) {
                         vm.isEditable = true;
+                        vm.isRemovable = !_.isNil(vm.assessment.rating);
                         vm.readOnlyReason = null;
                     } else {
                         vm.isEditable = false;
+                        vm.isRemovable = false;
                         vm.readOnlyReason = "You do not have permission to modify this assessment";
                     }
                 } else {
                     // permitted roles is empty therefore anyone can edit
                     vm.isEditable = true;
                     vm.readOnlyReason = null;
+                    vm.isRemovable = !_.isNil(vm.assessment.rating);
                 }
             });
+            vm.mode = modes.VIEW;
     }
 
 }

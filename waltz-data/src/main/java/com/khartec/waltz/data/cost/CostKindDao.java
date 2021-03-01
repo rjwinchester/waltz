@@ -68,7 +68,6 @@ public class CostKindDao {
 
 
     public Set<Tuple2<EntityCostKind, Integer>> findCostKindsBySelector(GenericSelector genericSelector){
-
         return dsl
                 .select(COST_KIND.fields())
                 .select(DSL.max(COST.YEAR))
@@ -80,4 +79,11 @@ public class CostKindDao {
                 .fetchSet(r -> tuple(TO_COST_KIND_MAPPER.map(r), r.get(DSL.max(COST.YEAR))));
     }
 
+
+    public EntityCostKind getById(Long costKindId) {
+        return dsl
+                .selectFrom(COST_KIND)
+                .where(COST_KIND.ID.eq(costKindId))
+                .fetchOne(TO_COST_KIND_MAPPER);
+    }
 }

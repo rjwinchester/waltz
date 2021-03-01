@@ -28,22 +28,22 @@ import {currenciesByCode} from "../../../common/currency-utils";
 import {truncateMiddle} from "../../../common/string-utils";
 
 
-const template = "<div class='waltz-asset-costs-graph'></div>";
-
 const bindings = {
     costs: "<",
     onSelect: "<?"
 };
 
 
+const template = "<div class='waltz-entity-costs-graph'></div>";
+const startColor = "#c4eeff";
+const endColor = "#55d3ff";
+const transitionDuration = 800;
+
+
 const initialState = {
     costs: [],
     onSelect: d => console.log("Default entity-cost-graph on-select handler", d)
 };
-
-
-const startColor = "#c4eeff";
-const endColor = "#55d3ff";
 
 
 const dimensions = {
@@ -54,15 +54,15 @@ const dimensions = {
         top: 0,
         left: 150,
         right: 50,
-        bottom: 50
-    },
-    circleSize: 24
+        bottom: 10
+    }
 };
 
 
 function drawYAxis(yScale,
                    container,
-                   refsById) {
+                   refsById,
+                   onSelect) {
 
     const yAxis = axisLeft(yScale)
         .tickFormat(d => truncateMiddle(
@@ -70,6 +70,8 @@ function drawYAxis(yScale,
             25));
 
     container
+        .transition()
+        .duration(transitionDuration)
         .call(yAxis);
 
     container
@@ -94,7 +96,7 @@ function draw(chartBody,
     const yScale = scaleBand()
         .domain(_.map(costs, c => c.entityReference.id))
         .range([0, dimensions.graph.height - (dimensions.margin.top + dimensions.margin.bottom)])
-        .padding(0.2);
+        .padding(0.3);
 
     const colorScale = scaleLinear()
         .domain(totalExtent)
@@ -125,8 +127,6 @@ function draw(chartBody,
         .append("text")
         .attr("x", 10);
 
-    const transitionDuration = 1000;
-
     const allBars = bars
         .merge(newBars);
 
@@ -140,7 +140,7 @@ function draw(chartBody,
 
     allBars
         .select("text")
-        .attr("y", yScale.bandwidth() / 2 + 3)  // middle of the bar
+        .attr("y", yScale.bandwidth() / 2 + 4)  // middle of the bar
         .text(d => currencyFormat(d.amount));
 
     allBars
@@ -148,12 +148,17 @@ function draw(chartBody,
         .duration(transitionDuration)
         .attr("transform", (d) => `translate(0, ${yScale(d.entityReference.id)})`);
 
-    const refsById = _.chain(costs)
+    const refsById = _
+        .chain(costs)
         .map(d => d.entityReference)
         .keyBy(d => d.id)
         .value();
 
-    drawYAxis(yScale, chartAxis, refsById);
+    drawYAxis(
+        yScale,
+        chartAxis,
+        refsById,
+        onSelect);
 }
 
 
@@ -165,6 +170,7 @@ function controller($element, $scope, settingsService) {
         .append("svg")
         .attr("id", "waltz-entity-costs-graph")
         .style("min-height", "300px")
+        .style("max-height", "500px")
         .attr("preserveAspectRatio", "xMinYMin meet");
 
     const chartBody = svg
@@ -181,7 +187,7 @@ function controller($element, $scope, settingsService) {
             return;
         }
 
-        dimensions.graph.height = 100 + (vm.costs.length * 20);
+        dimensions.graph.height = 20 + (vm.costs.length * 20);
 
         svg.attr("viewBox", `0 0 ${dimensions.graph.width} ${dimensions.graph.height}`);
 
@@ -193,7 +199,6 @@ function controller($element, $scope, settingsService) {
             currencyFormat);
 
     };
-
 
     vm.$onInit = () => {
         settingsService

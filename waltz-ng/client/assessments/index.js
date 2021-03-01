@@ -18,14 +18,19 @@
 
 import services from "./services";
 import Routes from "./routes";
-import { registerComponents } from "../common/module-utils";
+import {registerComponents} from "../common/module-utils";
+import AssessmentDefinitionList from "./pages/list/assessment-definition-list";
 import AssessmentEditor from "./components/editor/assessment-editor";
+import AssessmentRatingFavouritesList from "./components/favourites-list/assessment-rating-favourites-list";
 import AssessmentRatingList from "./components/list/assessment-rating-list";
+import AssessmentRatingSection from "./components/section/assessment-rating-section";
 import AssessmentRatingSubSection from "./components/sub-section/assessment-rating-sub-section";
 import AssessmentRatingSummaryPies from "./components/summary-pies/assessment-rating-summary-pies";
 import AssessmentRatingTrafficLights from "./components/traffic-lights/assessment-rating-traffic-lights";
 import BulkAssessmentRatingSelector from "./components/bulk-assessment-rating-selector/bulk-assessment-rating-selector";
 import AssessmentDefinitionOverview from "./components/assessment-definition-overview/assessment-definition-overview";
+
+
 
 export default () => {
 
@@ -35,13 +40,16 @@ export default () => {
     services(module);
 
     registerComponents(module, [
+        AssessmentDefinitionList,
         AssessmentEditor,
+        AssessmentRatingFavouritesList,
         AssessmentRatingList,
         AssessmentRatingSubSection,
         AssessmentRatingSummaryPies,
         AssessmentRatingTrafficLights,
         BulkAssessmentRatingSelector,
-        AssessmentDefinitionOverview
+        AssessmentDefinitionOverview,
+        AssessmentRatingSection
     ]);
 
     return module.name;

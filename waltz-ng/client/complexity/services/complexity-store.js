@@ -15,42 +15,34 @@
  * See the License for the specific
  *
  */
-import _ from 'lodash';
-import {mkSelectionOptions} from "../../common/selector-utils";
 
 
 export function store($http, BaseApiUrl) {
 
     const BASE = `${BaseApiUrl}/complexity`;
 
-    const findByApplication = id => {
-        console.log('DEPRECATED (1.2) - complexity-store:findByApplication');
+    const findByEntityReference = (ref) => {
         return $http
-            .get(`${BASE}/application/${id}`)
+            .get(`${BASE}/entity/kind/${ref.kind}/id/${ref.id}`)
             .then(result => result.data);
     };
 
-    const findBySelector = (id, kind, scope = 'CHILDREN') => {
-        const options = _.isObject(id)
-            ? id
-            : mkSelectionOptions({id, kind}, scope);
-
-
+    const findBySelector = (targetKind, selectionOptions) => {
         return $http
-            .post(BASE, options)
-            .then(result => result.data);
-    };
-
-    const recalculateAll = () =>
-        $http
-            .get(`${BASE}/rebuild`)
+            .post(`${BASE}/target-kind/${targetKind}`, selectionOptions)
             .then(r => r.data);
+    };
 
+    const findByTopCostsSummaryByTargetKindAndSelector = (complexityKindId, targetKind, selectionOptions) => {
+        return $http
+            .post(`${BASE}/complexity-kind/${complexityKindId}/target-kind/${targetKind}`, selectionOptions)
+            .then(r => r.data);
+    };
 
     return {
-        findByApplication,
+        findByEntityReference,
         findBySelector,
-        recalculateAll
+        findByTopCostsSummaryByTargetKindAndSelector
     };
 }
 
@@ -62,21 +54,21 @@ store.$inject = [
 export const serviceName = 'ComplexityStore';
 
 export const ComplexityStore_API = {
-    findByApplication: {
+    findByEntityReference: {
         serviceName,
-        serviceFnName: 'findByApplication',
-        description: 'executes findByApplication (takes an id)'
+        serviceFnName: 'findByEntityReference',
+        description: 'executes findByEntityReference (ref) '
     },
     findBySelector: {
         serviceName,
         serviceFnName: 'findBySelector',
-        description: 'executes findBySelector'
+        description: 'executes findBySelector (targetKind, selectionOptions) '
     },
-    recalculateAll: {
+    findByTopCostsSummaryByTargetKindAndSelector: {
         serviceName,
-        serviceFnName: 'recalculateAll',
-        description: 'executes recalculateAll'
-    },
+        serviceFnName: 'findByTopCostsSummaryByTargetKindAndSelector',
+        description: 'executes findByTopCostsSummaryByTargetKindAndSelector (complexityKindId, targetKind, selectionOptions) '
+    }
 };
 
 

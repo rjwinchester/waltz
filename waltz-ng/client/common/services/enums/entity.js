@@ -108,6 +108,13 @@ export const entity = {
         description: null,
         position: 95
     },
+    CHANGE_UNIT: {
+        key: "CHANGE_UNIT",
+        name: "Change Unit",
+        icon: "hourglass-2",
+        description: null,
+        position: 96
+    },
     DATABASE: {
         key: "DATABASE",
         name: "Database",
@@ -128,6 +135,13 @@ export const entity = {
         icon: "table",
         description: null,
         position: 120
+    },
+    ENTITY_RELATIONSHIP: {
+        key: "ENTITY_RELATIONSHIP",
+        name: "Entity Relationship",
+        icon: "link",
+        description: null,
+        position: 125
     },
     ENTITY_STATISTIC: {
         key: "ENTITY_STATISTIC",
