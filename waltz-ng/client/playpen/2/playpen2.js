@@ -17,36 +17,52 @@
  */
 
 import template from "./playpen2.html";
+import {mkSelectionOptions} from "../../common/selector-utils";
+import {CORE_API} from "../../common/services/core-api-utils";
+import {mkRef} from "../../common/entity-utils";
 
 
-function controller($http, $q) {
+const initialState = {
+    checkedItemIds: [],
+    parentEntityRef: {id: 20506, kind: "APPLICATION"}
+}
 
-    const vm = Object.assign(this, {});
+function controller(serviceBroker) {
 
-    vm.$onInit = () => {
-        const promises = [
-            $http.get("http://localhost:8443/api/enum-value").then(r => console.log("ev", r.data) || r.data),
-            $http.get("http://localhost:8443/api/bookmarks/APPLICATION/840").then(r => console.log("b1", r.data) || r.data),
-            $http.get("http://localhost:8443/api/bookmarks/APPLICATION/841").then(r => console.log("b2", r.data) || r.data)
-        ];
-        $q.all(promises)
-            .then(([p1, p2, p3]) => {
-                console.log({p1, p2, p3})
-            });
-    };
+    const vm = Object.assign(this, initialState);
+
+    serviceBroker
+        .loadViewData(CORE_API.MeasurableStore.findMeasurablesBySelector, 
+                      [mkSelectionOptions(
+                          mkRef("MEASURABLE_CATEGORY", 16),
+                          "EXACT")])
+        .then(r => vm.recordsManagementItems = console.log(r.data) || r.data);
+    
+    vm.isDisabled = (d) => !d.concrete;
+
+    vm.onItemCheck = (d) => {
+
+
+        vm.checkedItemIds = _.union(vm.checkedItemIds, [d]);
+    }
+
+    vm.onItemUncheck = (d) => {
+        vm.checkedItemIds = _.without(vm.checkedItemIds, d);
+
+    }
+
 }
 
 
 
-controller.$inject = [
-    '$http', "$q"
-];
+
+controller.$inject = ["ServiceBroker"];
 
 
 const view = {
     template,
     controller,
-    controllerAs: 'ctrl',
+    controllerAs: "$ctrl",
     bindToController: true,
     scope: {}
 };

@@ -40,6 +40,7 @@ import com.khartec.waltz.model.application.Application;
 import com.khartec.waltz.model.change_initiative.ChangeInitiative;
 import com.khartec.waltz.model.changelog.ChangeLog;
 import com.khartec.waltz.model.changelog.ImmutableChangeLog;
+import com.khartec.waltz.model.entity_search.EntitySearchOptions;
 import com.khartec.waltz.model.flow_diagram.*;
 import com.khartec.waltz.model.logical_flow.LogicalFlow;
 import com.khartec.waltz.model.measurable.Measurable;
@@ -76,6 +77,7 @@ public class FlowDiagramService {
     private final FlowDiagramDao flowDiagramDao;
     private final FlowDiagramEntityDao flowDiagramEntityDao;
     private final FlowDiagramAnnotationDao flowDiagramAnnotationDao;
+    private final FlowDiagramOverlayGroupService flowDiagramOverlayGroupService;
     private final ApplicationDao applicationDao;
     private final LogicalFlowDao logicalFlowDao;
     private final PhysicalFlowDao physicalFlowDao;
@@ -93,6 +95,7 @@ public class FlowDiagramService {
                               FlowDiagramDao flowDiagramDao,
                               FlowDiagramEntityDao flowDiagramEntityDao,
                               FlowDiagramAnnotationDao flowDiagramAnnotationDao,
+                              FlowDiagramOverlayGroupService flowDiagramOverlayGroupService,
                               ApplicationDao applicationDao,
                               LogicalFlowDao logicalFlowDao,
                               PhysicalFlowDao physicalFlowDao,
@@ -104,6 +107,7 @@ public class FlowDiagramService {
         checkNotNull(flowDiagramDao, "flowDiagramDao cannot be null");
         checkNotNull(flowDiagramEntityDao, "flowDiagramEntityDao cannot be null");
         checkNotNull(flowDiagramAnnotationDao, "flowDiagramAnnotationDao cannot be null");
+        checkNotNull(flowDiagramOverlayGroupService, "flowDiagramOverlayGroupService cannot be null");
         checkNotNull(applicationDao, "applicationDao cannot be null");
         checkNotNull(logicalFlowDao, "logicalFlowDao cannot be null");
         checkNotNull(physicalFlowDao, "physicalFlowDao cannot be null");
@@ -116,6 +120,7 @@ public class FlowDiagramService {
         this.flowDiagramDao = flowDiagramDao;
         this.flowDiagramEntityDao = flowDiagramEntityDao;
         this.flowDiagramAnnotationDao = flowDiagramAnnotationDao;
+        this.flowDiagramOverlayGroupService = flowDiagramOverlayGroupService;
         this.applicationDao = applicationDao;
         this.logicalFlowDao = logicalFlowDao;
         this.physicalFlowDao = physicalFlowDao;
@@ -189,6 +194,8 @@ public class FlowDiagramService {
         createEntities(diagramId, command.entities());
         createAnnotations(diagramId, command.annotations());
 
+        flowDiagramOverlayGroupService.updateOverlaysForDiagram(diagramId, command.overlays(), username);
+
         List<EntityReference> newEntities = map(command.entities(), FlowDiagramEntity::entityReference);
         auditEntityChange(mkRef(FLOW_DIAGRAM, diagramId), existingEntities, newEntities, username);
         return diagramId;
@@ -237,7 +244,7 @@ public class FlowDiagramService {
 
     public boolean deleteById(long id, String username) {
         auditChange("removed", mkRef(FLOW_DIAGRAM, id), username, Operation.REMOVE);
-        return flowDiagramDao.deleteById(id);
+        return flowDiagramDao.deleteById(id, username);
     }
 
 
@@ -308,6 +315,8 @@ public class FlowDiagramService {
                 return makeForApplication(ref, userId, title);
             case ACTOR:
                 return makeForActor(ref, userId, title);
+            case LOGICAL_DATA_FLOW:
+                return makeForLogicalFlow(ref, userId, title);
             case PHYSICAL_FLOW:
                 return makeForPhysicalFlow(ref, userId, title);
             case PHYSICAL_SPECIFICATION:
@@ -319,6 +328,21 @@ public class FlowDiagramService {
             default:
                 throw new UnsupportedOperationException("Cannot make diagram for entity: "+ref);
         }
+    }
+
+    private Long makeForLogicalFlow(EntityReference ref, String userId, String providedTitle) {
+        LogicalFlow logicalFlow = logicalFlowDao.getByFlowId(ref.id());
+
+        String title = isEmpty(providedTitle)
+                ? format("%s -> %s flow diagram", logicalFlow.source().name(), logicalFlow.target().name())
+                : providedTitle;
+
+        ArrayList<FlowDiagramEntity> entities = newArrayList(
+                mkDiagramEntity(logicalFlow),
+                mkDiagramEntity(logicalFlow.source()),
+                mkDiagramEntity(logicalFlow.target()));
+
+        return mkNewFlowDiagram(title, userId, entities, emptyList());
     }
 
 
@@ -499,4 +523,7 @@ public class FlowDiagramService {
     }
 
 
+    public Collection<FlowDiagram> search(EntitySearchOptions options) {
+        return flowDiagramDao.search(options);
+    }
 }

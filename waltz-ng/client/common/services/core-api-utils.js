@@ -25,6 +25,7 @@ import {ApplicationStore_API as ApplicationStore} from "../../applications/servi
 import {AssessmentDefinitionStore_API as AssessmentDefinitionStore} from "../../assessments/services/assessment-definition-store";
 import {AssessmentRatingStore_API as AssessmentRatingStore} from "../../assessments/services/assessment-rating-store";
 import {AttestationInstanceStore_API as AttestationInstanceStore} from "../../attestation/services/attestation-instance-store";
+import {AttestationPreCheckStore_API as AttestationPreCheckStore} from "../../attestation/services/attestation-pre-check-store";
 import {AttestationRunStore_API as AttestationRunStore} from "../../attestation/services/attestation-run-store";
 import {AttributeChangeStore_API as AttributeChangeStore} from "../../attribute-change/services/attribute-change-store";
 import {AssetCostStore_API as AssetCostStore} from "../../asset-cost/services/asset-cost-store";
@@ -37,12 +38,13 @@ import {ChangeSetStore_API as ChangeSetStore} from "../../change-set/services/ch
 import {ChangeUnitStore_API as ChangeUnitStore} from "../../change-unit/services/change-unit-store";
 import {ChangeUnitViewService_API as ChangeUnitViewService} from "../../change-unit/services/change-unit-view-service";
 import {ClientCacheKeyStore_API as ClientCacheKeyStore} from "../../client_cache_key/services/client-cache-key-store";
-import {ComplexityScoreStore_API as ComplexityScoreStore} from "../../complexity/services/complexity-score-store";
 import {ComplexityStore_API as ComplexityStore} from "../../complexity/services/complexity-store";
 import {ComplexityKindStore_API as ComplexityKindStore} from "../../complexity/services/complexity-kind-store";
 import {CostKindStore_API as CostKindStore} from "../../cost/services/cost-kind-store";
 import {CostStore_API as CostStore} from "../../cost/services/cost-store";
+import {CustomEnvironmentStore_API as CustomEnvironmentStore} from "../../custom-environment/services/custom-environment-store";
 import {DatabaseStore_API as DatabaseStore} from "../../databases/services/database-store";
+import {DatabaseUsageStore_API as DatabaseUsageStore} from "../../databases/services/database-usage-store";
 import {DataTypeStore_API as DataTypeStore} from "../../data-types/services/data-type-store";
 import {DataTypeDecoratorStore_API as DataTypeDecoratorStore} from "../../data-types/services/data-type-decorator-store";
 import {DataTypeUsageStore_API as DataTypeUsageStore} from "../../data-type-usage/services/data-type-usage-store";
@@ -62,6 +64,7 @@ import {FavouritesStore_API as FavouritesStore} from "../../app-groups/services/
 import {FlowDiagramStore_API as FlowDiagramStore} from "../../flow-diagram/services/flow-diagram-store";
 import {FlowDiagramAnnotationStore_API as FlowDiagramAnnotationStore} from "../../flow-diagram/services/flow-diagram-annotation-store";
 import {FlowDiagramEntityStore_API as FlowDiagramEntityStore} from "../../flow-diagram/services/flow-diagram-entity-store";
+import {FlowDiagramOverlayGroupStore_API as FlowDiagramOverlayGroupStore} from "../../flow-diagram/services/flow-diagram-overlay-group-store";
 import {InvolvementStore_API as InvolvementStore} from "../../involvement/services/involvement-store";
 import {InvolvementKindStore_API as InvolvementKindStore} from "../../involvement-kind/services/involvement-kind-store";
 import {InvolvementViewService_API as InvolvementViewService} from "../../involvement/services/involvement-view-service";
@@ -120,6 +123,7 @@ export const CORE_API = {
     ApplicationStore,
     AttestationInstanceStore,
     AttestationRunStore,
+    AttestationPreCheckStore,
     AttributeChangeStore,
     AssetCostStore,
     AssessmentDefinitionStore,
@@ -133,12 +137,13 @@ export const CORE_API = {
     ChangeUnitStore,
     ChangeUnitViewService,
     ClientCacheKeyStore,
-    ComplexityScoreStore, //TODO: Deprecated - remove in 1.32
     ComplexityStore,
     ComplexityKindStore,
     CostKindStore,
     CostStore,
+    CustomEnvironmentStore,
     DatabaseStore,
+    DatabaseUsageStore,
     DataTypeStore,
     DataTypeDecoratorStore,
     DataTypeUsageStore,
@@ -157,6 +162,7 @@ export const CORE_API = {
     FlowDiagramStore,
     FlowDiagramAnnotationStore,
     FlowDiagramEntityStore,
+    FlowDiagramOverlayGroupStore,
     EntitySvgDiagramStore,
     InvolvementStore,
     InvolvementKindStore,

@@ -19,6 +19,8 @@
 package com.khartec.waltz.data.survey;
 
 import com.khartec.waltz.common.StringUtilities;
+import com.khartec.waltz.model.EntityKind;
+import com.khartec.waltz.model.EntityReference;
 import com.khartec.waltz.model.survey.ImmutableSurveyQuestion;
 import com.khartec.waltz.model.survey.SurveyQuestion;
 import com.khartec.waltz.model.survey.SurveyQuestionFieldType;
@@ -34,6 +36,7 @@ import java.util.function.Function;
 
 import static com.khartec.waltz.common.Checks.checkNotNull;
 import static com.khartec.waltz.common.Checks.checkTrue;
+import static com.khartec.waltz.model.EntityReference.mkRef;
 import static com.khartec.waltz.schema.Tables.*;
 import static com.khartec.waltz.schema.tables.SurveyQuestion.SURVEY_QUESTION;
 
@@ -42,6 +45,11 @@ public class SurveyQuestionDao {
 
     private static final RecordMapper<Record, SurveyQuestion> TO_DOMAIN_MAPPER = r -> {
         SurveyQuestionRecord record = r.into(SURVEY_QUESTION);
+
+        Optional<EntityReference> qualifierRef = Optional
+                .ofNullable(record.getEntityQualifierKind())
+                .map(k -> mkRef(EntityKind.valueOf(k), record.getEntityQualifierId()));
+
         return ImmutableSurveyQuestion.builder()
                 .id(record.getId())
                 .surveyTemplateId(record.getSurveyTemplateId())
@@ -54,12 +62,16 @@ public class SurveyQuestionDao {
                 .allowComment(record.getAllowComment())
                 .externalId(Optional.ofNullable(record.getExternalId()))
                 .inclusionPredicate(Optional.ofNullable(record.getInclusionPredicate()))
+                .qualifierEntity(qualifierRef)
+                .label(Optional.ofNullable(record.getLabel()))
+                .parentExternalId(Optional.ofNullable(record.getParentExternalId()))
                 .build();
     };
 
 
     private static final Function<SurveyQuestion, SurveyQuestionRecord> TO_RECORD_MAPPER = question -> {
         SurveyQuestionRecord record = new SurveyQuestionRecord();
+
         record.setSurveyTemplateId(question.surveyTemplateId());
         record.setQuestionText(question.questionText());
         record.setHelpText(question.helpText().orElse(""));
@@ -71,7 +83,17 @@ public class SurveyQuestionDao {
         record.setExternalId(question.externalId()
                 .filter(StringUtilities::notEmpty)
                 .orElse(null));
+        record.setParentExternalId(question.parentExternalId()
+                .filter(StringUtilities::notEmpty)
+                .orElse(null));
+        record.setLabel(question.label().orElse(null));
         record.setInclusionPredicate(question.inclusionPredicate().orElse(null));
+
+        question.qualifierEntity().ifPresent(ref -> {
+            record.setEntityQualifierKind(ref.kind().name());
+            record.setEntityQualifierId(ref.id());
+        });
+
         return record;
     };
 
@@ -145,6 +167,14 @@ public class SurveyQuestionDao {
                 .selectFrom(SURVEY_QUESTION_RESPONSE)
                 .where(SURVEY_QUESTION_RESPONSE.QUESTION_ID.eq(questionId))
         );
+    }
+
+
+    public int deleteForTemplate(Long templateId){
+        return dsl
+                .deleteFrom(SURVEY_QUESTION)
+                .where(SURVEY_QUESTION.SURVEY_TEMPLATE_ID.eq(templateId))
+                .execute();
     }
 
 

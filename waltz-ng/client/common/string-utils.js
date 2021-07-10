@@ -16,6 +16,8 @@
  *
  */
 
+import _ from "lodash";
+
 /**
  * Truncate a string
  *
@@ -118,6 +120,10 @@ export function stringToBoolean(str){
  * @returns {*}
  */
 export function toDomain(url) {
+    if (_.isEmpty(url)) {
+        return "";
+    }
+
     let domain;
     //find & remove protocol (http, ftp, etc.) and get domain
     if (url.indexOf("://") > -1) {
@@ -202,4 +208,13 @@ export function toPercentage(numerator = 0, denominator = 0, fixedPlaces = 1) {
  */
 export function fmt(d){
     return JSON.stringify(d, null, 2);
+}
+
+
+/**
+ * Formats the given string into upper case with all spaces replaces with underscores
+ * @param d - string to format
+ */
+export function toUpperSnakeCase(d){
+    return _.toUpper(_.snakeCase(d));
 }

@@ -27,6 +27,7 @@ import {loadAssessmentsBySelector} from "../../../assessments/assessment-utils";
 
 import template from "./technology-section.html";
 import {tryOrDefault} from "../../../common/function-utils";
+import CustomEnvironmentPanel from "../../svelte/custom-environment-panel/CustomEnvironmentPanel.svelte"
 
 
 const bindings = {
@@ -35,7 +36,8 @@ const bindings = {
 
 const initialState = {
     activeTabIndex: 0,
-    repeatedPackages: []
+    repeatedPackages: [],
+    CustomEnvironmentPanel
 };
 
 
@@ -90,7 +92,7 @@ function createDefaultTableOptions($animate, uiGridConstants, exportFileName = "
 function prepareServerGridOptions($animate, uiGridConstants) {
 
     const columnDefs = [
-        mkLinkGridCell("Host", "hostname", "id", "main.server.view"),
+        mkLinkGridCell("Host", "hostname", "serverId", "main.server.view"),
         { field: "environment" },
         {
             field: "virtual",
@@ -128,7 +130,7 @@ function prepareServerGridOptions($animate, uiGridConstants) {
 function prepareDatabaseGridOptions($animate, uiGridConstants) {
 
     const columnDefs = [
-        { field: "instanceName", displayName: "Instance" },
+        mkLinkGridCell("Name", "instanceName", "databaseId", "main.database.view"),
         { field: "databaseName", displayName: "Database" },
         { field: "environment" },
         { field: "dbmsVendor", displayName: "Vendor" },
@@ -210,6 +212,11 @@ function combineServersAndUsage(servers = [], serverUsage = []) {
     return _.map(serverUsage, su => Object.assign({}, serversById[su.serverId], su));
 }
 
+function combineDatabaseAndUsage(database = [], databaseUsage = []) {
+    const databaseById = _.keyBy(database, "id");
+    return _.map(databaseUsage, du => Object.assign({}, databaseById[du.databaseId], du));
+}
+
 
 function controller($q, $animate, uiGridConstants, serviceBroker) {
 
@@ -248,7 +255,14 @@ function controller($q, $animate, uiGridConstants, serviceBroker) {
                 refresh(vm.qry);
             });
 
-        serviceBroker
+
+        const databaseUsagePromise = serviceBroker
+            .loadViewData(
+                CORE_API.DatabaseUsageStore.findByEntityReference,
+                [ vm.parentEntityRef ])
+            .then(r => vm.databaseUsage = r.data);
+
+        const databasePromise = serviceBroker
             .loadViewData(
                 CORE_API.DatabaseStore.findByAppId,
                 [ vm.parentEntityRef.id ])
@@ -259,9 +273,13 @@ function controller($q, $animate, uiGridConstants, serviceBroker) {
                               "isEndOfLife": isEndOfLife(db.endOfLifeStatus)
                           })
                 );
-                vm.databaseGridOptions.data = vm.databases;
-            })
-            .then(() => refresh(vm.qry));
+            });
+
+        $q.all([databaseUsagePromise, databasePromise])
+            .then(() => {
+                vm.databaseGridOptions.data = combineDatabaseAndUsage(vm.databases, vm.databaseUsage);
+                refresh(vm.qry);
+            });
 
         // licences
         const licencePromise = serviceBroker

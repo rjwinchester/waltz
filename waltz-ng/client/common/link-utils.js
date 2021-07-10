@@ -28,6 +28,7 @@ const stateKindTuples = [
     {kind: "ACTOR", state: "main.actor.view"},
     {kind: "APPLICATION", state: "main.app.view"},
     {kind: "APP_GROUP", state: "main.app-group.view"},
+    {kind: "AUTHORITATIVE_SOURCE", state: "main.authoritative-source.view"},
     {kind: "CHANGE_INITIATIVE", state: "main.change-initiative.view"},
     {kind: "CHANGE_SET", state: "main.change-set.view"},
     {kind: "DATA_TYPE", state: "main.data-type.view"},
@@ -47,6 +48,7 @@ const stateKindTuples = [
     {kind: "ROADMAP", state: "main.roadmap.view"},
     {kind: "SCENARIO", state: "main.scenario.view"},
     {kind: "SERVER", state: "main.server.view"},
+    {kind: "DATABASE", state: "main.database.view"},
     {kind: "SOFTWARE", state: "main.software-package.view"},
     {kind: "SOFTWARE_VERSION", state: "main.software-version.view"}, //todo: no separate view for this (for now), just a workaround for the entity-link tooltip
     {kind: "SURVEY_INSTANCE", state: "main.survey.instance.view"},

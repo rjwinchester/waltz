@@ -270,4 +270,90 @@
         </addColumn>
     </changeSet>
 
+    <changeSet id="20210310-5330-1"
+               author="davidwatkins73">
+        <comment>5330: add external id to actor table</comment>
+        <addColumn tableName="actor">
+            <column name="external_id"
+                    type="${external-id.type}"/>
+        </addColumn>
+    </changeSet>
+
+    <changeSet id="20210310-5330-2"
+               author="davidwatkins73"
+               dbms="postgresql">
+        <comment>5330: add external id to actor table</comment>
+        <addUniqueConstraint columnNames="external_id"
+                             constraintName="unique_actor_ext_id"
+                             tableName="actor"/>
+    </changeSet>
+
+
+    <changeSet id="20210312-5334-1"
+               author="woodjes">
+        <comment>5334: adding index to person</comment>
+        <createIndex indexName="idx_person_email"
+                     tableName="person"
+                     unique="false">
+            <column name="email" type="VARCHAR(255)"/>
+        </createIndex>
+    </changeSet>
+
+
+    <changeSet id="20210310-5321-1"
+               author="davidwatkins73">
+        <comment>5321: add external id to rating_scheme_item table</comment>
+        <addColumn tableName="rating_scheme_item">
+            <column name="external_id"
+                    type="${external-id.type}">
+                <constraints nullable="true" />
+            </column>
+        </addColumn>
+    </changeSet>
+
+
+    <changeSet id="20210310-5350-1"
+               author="davidwatkins73">
+        <comment>5350: add fk from assessment def to ratings</comment>
+        <addForeignKeyConstraint constraintName="assessment_rating_to_definition_fk"
+                                 baseTableName="assessment_rating"
+                                 referencedTableName="assessment_definition"
+                                 baseColumnNames="assessment_definition_id"
+                                 referencedColumnNames="id"
+                                 onDelete="CASCADE"/>
+    </changeSet>
+
+
+    <changeSet id="20210310-5350-2"
+               author="davidwatkins73">
+        <comment>5350: add fk from assessment def to ratings</comment>
+
+        <insert tableName="role">
+            <column name="name" value="Rating Scheme Admin"/>
+            <column name="key" value="RATING_SCHEME_ADMIN"/>
+            <column name="description" value="Can modify rating schemes"/>
+            <column name="is_custom" valueBoolean="false"/>
+        </insert>
+
+        <insert tableName="role">
+            <column name="name" value="Assessment Definition Admin"/>
+            <column name="key" value="ASSESSMENT_DEFINITION_ADMIN"/>
+            <column name="description" value="Can modify assessment definitions"/>
+            <column name="is_custom" valueBoolean="false"/>
+        </insert>
+
+    </changeSet>
+
+    <changeSet id="20210405-5336-1"
+               author="gharvai">
+        <comment>5336: add external id to survey_template table</comment>
+        <addColumn tableName="survey_template">
+            <column name="external_id"
+                    type="${external-id.type}">
+                <constraints nullable="true" />
+            </column>
+        </addColumn>
+    </changeSet>
+
+
 </databaseChangeLog>

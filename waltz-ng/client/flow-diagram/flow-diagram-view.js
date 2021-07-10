@@ -28,6 +28,16 @@ const initialState = {
 };
 
 
+const addToHistory = (historyStore, diagram) => {
+    if (! diagram) { return; }
+    historyStore.put(
+        diagram.name,
+        "FLOW_DIAGRAM",
+        "main.flow-diagram.view",
+        { id: diagram.id });
+};
+
+
 function prepareDataForExport(flows = []) {
     const columnNames = [[
         "Source",
@@ -71,6 +81,7 @@ function controller(
     displayNameService,
     dynamicSectionManager,
     flowDiagramStateService,
+    historyStore,
     serviceBroker)
 {
     const vm = initialiseData(this, initialState);
@@ -94,11 +105,13 @@ function controller(
 
         flowDiagramStateService
             .load(id)
-            .then(loadVisibility);
 
         serviceBroker
             .loadViewData(CORE_API.FlowDiagramStore.getById, [ id ])
-            .then(r => vm.diagram = r.data);
+            .then(r => {
+                vm.diagram = r.data;
+                addToHistory(historyStore, vm.diagram);
+            });
 
         serviceBroker
             .loadViewData(CORE_API.FlowDiagramEntityStore.findByDiagramId, [ id ])
@@ -161,9 +174,6 @@ function controller(
 
     };
 
-    const loadVisibility = () =>
-        vm.visibility.layers = flowDiagramStateService.getState().visibility.layers;
-
     vm.clickHandlers =  {
         node: (d) => $timeout(
             () => vm.highlightIds = [d.data.id],
@@ -171,16 +181,6 @@ function controller(
         flowBucket: (d) => $timeout(
             () => vm.highlightIds = [d.data.id],
             0)
-    };
-
-    vm.toggleLayer = (layer) => {
-        const currentlyVisible = flowDiagramStateService.getState().visibility.layers[layer];
-        const cmd = {
-            command: currentlyVisible ? "HIDE_LAYER" : "SHOW_LAYER",
-            payload: layer
-        };
-        flowDiagramStateService.processCommands([cmd]);
-        loadVisibility();
     };
 
     vm.exportDiagramTable = () => {
@@ -202,6 +202,7 @@ controller.$inject = [
     "DisplayNameService",
     "DynamicSectionManager",
     "FlowDiagramStateService",
+    "HistoryStore",
     "ServiceBroker"
 ];
 

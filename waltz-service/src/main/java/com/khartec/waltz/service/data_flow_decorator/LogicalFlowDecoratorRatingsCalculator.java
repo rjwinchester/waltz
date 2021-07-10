@@ -78,7 +78,7 @@ public class LogicalFlowDecoratorRatingsCalculator {
     }
 
 
-    public Collection<DataTypeDecorator> calculate(Collection<DataTypeDecorator> decorators) {
+    public Collection<DataTypeDecorator>  calculate(Collection<DataTypeDecorator> decorators) {
 
         List<LogicalFlow> appToAppFlows = filter(
                 IS_APP_TO_APP_FLOW,
@@ -95,7 +95,8 @@ public class LogicalFlowDecoratorRatingsCalculator {
 
         AuthoritativeSourceResolver resolver = createResolver(targetApps);
 
-        return decorators.stream()
+        return decorators
+                .stream()
                 .filter(d -> flowsById.containsKey(d.dataFlowId()))
                 .map(decorator -> {
                     try {
@@ -108,9 +109,16 @@ public class LogicalFlowDecoratorRatingsCalculator {
                                     targetAppsById,
                                     resolver,
                                     decorator);
+                            Optional<Long> authSource = lookupAuthSource(
+                                    typesById,
+                                    flowsById,
+                                    targetAppsById,
+                                    resolver,
+                                    decorator);
                             return ImmutableDataTypeDecorator
                                     .copyOf(decorator)
-                                    .withRating(rating);
+                                    .withRating(rating)
+                                    .withAuthSourceId(authSource);
                         }
                     } catch (Exception e) {
                         LOG.warn("Failed to calculate rating for decorator: {}, reason: {}", decorator, e.getMessage());
@@ -161,6 +169,24 @@ public class LogicalFlowDecoratorRatingsCalculator {
         String dataTypeCode = lookupDataTypeCode(typesById, decorator);
 
         return resolver.resolve(vantagePoint, source, dataTypeCode);
+    }
+
+
+    private Optional<Long> lookupAuthSource(Map<Long, DataType> typesById,
+                                                     Map<Long, LogicalFlow> flowsById,
+                                                     Map<Long, Application> targetAppsById,
+                                                     AuthoritativeSourceResolver resolver,
+                                                     DataTypeDecorator decorator) {
+        LogicalFlow flow = flowsById.get(decorator.dataFlowId());
+
+        EntityReference vantagePoint = lookupVantagePoint(targetAppsById, flow);
+        EntityReference source = flow.source();
+        String dataTypeCode = lookupDataTypeCode(typesById, decorator);
+
+        Optional<AuthoritativeRatingVantagePoint> authoritativeRatingVantagePoint = resolver.resolveAuthSource(vantagePoint, source, dataTypeCode);
+
+        return authoritativeRatingVantagePoint
+                .map(AuthoritativeRatingVantagePoint::authSourceId);
     }
 
 

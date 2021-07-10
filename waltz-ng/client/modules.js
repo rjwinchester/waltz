@@ -52,6 +52,7 @@ import ClientCacheKey from "./client_cache_key";
 import Complexity from "./complexity";
 import Common_Module from "./common/module";
 import Cost from "./cost"
+import CustomEnvironment from "./custom-environment"
 import ChangeLog from "./change-log";
 import ChangeSet from "./change-set";
 import ChangeUnit from "./change-unit";
@@ -72,7 +73,6 @@ import EntitySvgDiagram from "./entity-svg-diagram";
 import Tag from "./tag";
 import EnumValue from "./enum-value";
 import Examples from "./examples";
-import Extensions from "./extensions";
 import ExternalIdentifier from "./external-identifier";
 import Facet from "./facet";
 import FlowDiagram from "./flow-diagram";
@@ -162,6 +162,7 @@ const dependencies = [
     Complexity(),
     Cost(),
     Common_Module(),
+    CustomEnvironment(),
     ChangeLog(),
     ChangeSet(),
     ChangeUnit(),
@@ -182,7 +183,6 @@ const dependencies = [
     Tag(),
     EnumValue(),
     Examples(),
-    Extensions(),
     ExternalIdentifier(),
     Facet(),
     FlowDiagram(),

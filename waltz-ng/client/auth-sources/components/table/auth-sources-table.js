@@ -19,19 +19,21 @@
 import _ from "lodash";
 import {initialiseData} from "../../../common";
 import {CORE_API} from "../../../common/services/core-api-utils";
-import {mkEntityLinkGridCell} from "../../../common/grid-utils";
+import {mkEntityLabelGridCell} from "../../../common/grid-utils";
 import template from "./auth-sources-table.html";
 
 
 const bindings = {
     parentEntityRef: "<",
-    authSources: "<"
+    authSources: "<",
+    onSelect: "<?"
 };
 
 
 const initialState = {
     consumersByAuthSourceId: {},
-    columnDefs: null
+    columnDefs: null,
+    onSelect: () => console.log("Default onSelect for auth sources table")
 };
 
 
@@ -95,9 +97,9 @@ function mkColumnDefs(parentRef) {
     };
 
     return _.compact([
-        mkEntityLinkGridCell("Data Type", "dataType", "none", "right"),
-        mkEntityLinkGridCell("Declaring Org Unit", "declaringOrgUnit", "none"),
-        mkEntityLinkGridCell("Application", "app", "none", "right"),
+        mkEntityLabelGridCell("Data Type", "dataType", "none", "right"),
+        mkEntityLabelGridCell("Scope", "parentReference", "left"),
+        mkEntityLabelGridCell("Application", "app", "none", "right"),
         consumerCell,
         ratingCell,
         notesCell
@@ -105,7 +107,7 @@ function mkColumnDefs(parentRef) {
 }
 
 
-function controller($q, serviceBroker, enumValueService) {
+function controller($q, $state, serviceBroker, enumValueService) {
 
     const vm = initialiseData(this, initialState);
 
@@ -132,16 +134,16 @@ function controller($q, serviceBroker, enumValueService) {
 
     function mkGridData() {
         const dataTypesByCode= _.keyBy(vm.dataTypes, "code");
-        const orgUnitsById = _.keyBy(vm.orgUnits, "id");
 
         vm.columnDefs = mkColumnDefs(vm.parentEntityRef);
         vm.gridData = _.map(vm.authSources, d => {
             const authoritativenessRatingEnum = vm.enums.AuthoritativenessRating[d.rating];
             return {
+                id: d.id,
                 app: d.applicationReference,
                 dataType: dataTypesByCode[d.dataType],
                 appOrgUnit: d.appOrgUnitReference,
-                declaringOrgUnit: orgUnitsById[d.parentReference.id],
+                parentReference: d.parentReference,
                 description: d.description,
                 rating: d.rating,
                 ratingValue: authoritativenessRatingEnum,
@@ -182,11 +184,17 @@ function controller($q, serviceBroker, enumValueService) {
             loadAll();
         }
     };
+
+    vm.onSelect = (d) => $state.go(
+        "main.authoritative-source.view",
+        { id: d.id });
+
 }
 
 
 controller.$inject = [
     "$q",
+    "$state",
     "ServiceBroker",
     "EnumValueService"
 ];

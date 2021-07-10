@@ -21,10 +21,7 @@ package com.khartec.waltz.data.physical_flow;
 import com.khartec.waltz.data.enum_value.EnumValueDao;
 import com.khartec.waltz.model.*;
 import com.khartec.waltz.model.enum_value.EnumValueKind;
-import com.khartec.waltz.model.physical_flow.FrequencyKind;
-import com.khartec.waltz.model.physical_flow.ImmutablePhysicalFlow;
-import com.khartec.waltz.model.physical_flow.PhysicalFlow;
-import com.khartec.waltz.model.physical_flow.PhysicalFlowParsed;
+import com.khartec.waltz.model.physical_flow.*;
 import com.khartec.waltz.schema.tables.records.PhysicalFlowRecord;
 import org.jooq.*;
 import org.jooq.impl.DSL;
@@ -66,7 +63,7 @@ public class PhysicalFlowDao {
                 .criticality(Criticality.valueOf(record.getCriticality()))
                 .description(record.getDescription())
                 .logicalFlowId(record.getLogicalFlowId())
-                .transport(record.getTransport())
+                .transport(TransportKindValue.of(record.getTransport()))
                 .freshnessIndicator(readEnum(
                         record.getFreshnessIndicator(),
                         FreshnessIndicator.class,
@@ -148,6 +145,14 @@ public class PhysicalFlowDao {
     }
 
 
+    public PhysicalFlow getByIdAndIsRemoved(long id, boolean isRemoved) {
+        return findByCondition(PHYSICAL_FLOW.ID.eq(id).and(PHYSICAL_FLOW.IS_REMOVED.eq(isRemoved)))
+                .stream()
+                .findFirst()
+                .orElse(null);
+    }
+
+
     public List<PhysicalFlow> findBySpecificationId(long specificationId) {
         return findByCondition(PHYSICAL_FLOW.SPECIFICATION_ID.eq(specificationId));
     }
@@ -163,7 +168,7 @@ public class PhysicalFlowDao {
         Condition sameFlow = PHYSICAL_FLOW.SPECIFICATION_ID.eq(flow.specificationId())
                 .and(PHYSICAL_FLOW.BASIS_OFFSET.eq(flow.basisOffset()))
                 .and(PHYSICAL_FLOW.FREQUENCY.eq(flow.frequency().name()))
-                .and(PHYSICAL_FLOW.TRANSPORT.eq(flow.transport()))
+                .and(PHYSICAL_FLOW.TRANSPORT.eq(flow.transport().value()))
                 .and(PHYSICAL_FLOW.LOGICAL_FLOW_ID.eq(flow.logicalFlowId()));
 
         return findByCondition(sameFlow);
@@ -173,7 +178,7 @@ public class PhysicalFlowDao {
     public PhysicalFlow getByParsedFlow(PhysicalFlowParsed flow) {
         Condition attributesMatch = PHYSICAL_FLOW.BASIS_OFFSET.eq(flow.basisOffset())
                 .and(PHYSICAL_FLOW.FREQUENCY.eq(flow.frequency().name()))
-                .and(PHYSICAL_FLOW.TRANSPORT.eq(flow.transport()))
+                .and(PHYSICAL_FLOW.TRANSPORT.eq(flow.transport().value()))
                 .and(PHYSICAL_FLOW.CRITICALITY.eq(flow.criticality().name()))
                 .and(PHYSICAL_FLOW_NOT_REMOVED);
 
@@ -223,15 +228,22 @@ public class PhysicalFlowDao {
                 .and(PHYSICAL_FLOW.SPECIFICATION_ID.eq(flow.specificationId()))
                 .and(PHYSICAL_FLOW.BASIS_OFFSET.eq(flow.basisOffset()))
                 .and(PHYSICAL_FLOW.FREQUENCY.eq(flow.frequency().name()))
-                .and(PHYSICAL_FLOW.TRANSPORT.eq(flow.transport()))
+                .and(PHYSICAL_FLOW.TRANSPORT.eq(flow.transport().value()))
                 .and(PHYSICAL_FLOW.CRITICALITY.eq(flow.criticality().name()))
                 .and(idCondition)
                 .fetchOne(TO_DOMAIN_MAPPER);
     }
 
 
+    /**
+     * Soft deletes the physical flow in the database that matches the parameter flowId
+     *
+     * @param flowId the physical flow id to match against
+     * @return soft deleted flow count or 0
+     */
     public int delete(long flowId) {
-        return dsl.delete(PHYSICAL_FLOW)
+        return dsl.update(PHYSICAL_FLOW)
+                .set(PHYSICAL_FLOW.IS_REMOVED, true)
                 .where(PHYSICAL_FLOW.ID.eq(flowId))
                 .execute();
     }
@@ -254,7 +266,7 @@ public class PhysicalFlowDao {
         record.setLogicalFlowId(flow.logicalFlowId());
 
         record.setFrequency(flow.frequency().name());
-        record.setTransport(flow.transport());
+        record.setTransport(flow.transport().value());
         record.setBasisOffset(flow.basisOffset());
         record.setCriticality(flow.criticality().name());
 

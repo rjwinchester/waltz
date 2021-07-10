@@ -15,6 +15,8 @@
  * See the License for the specific
  *
  */
+import BookmarkPanel from "../bookmarks/svelte/BookmarkPanel.svelte";
+
 
 const appsSection = {
     componentId: "apps-section",
@@ -45,6 +47,7 @@ const authSourcesSection = {
 };
 
 const bookmarksSection = {
+    svelteComponent: BookmarkPanel,
     componentId: "bookmarks-section",
     name: "Bookmarks",
     icon: "rocket",
@@ -63,13 +66,6 @@ const changeLogSection = {
     icon: "history",
     name: "Changes",
     id: 7,
-};
-
-const complexitySection = {
-    componentId: "complexity-section",
-    icon: "sort-numeric-asc",
-    name: "Complexity",
-    id: 8,
 };
 
 const dataFlowSection = {
@@ -165,28 +161,28 @@ const measurableRatingExplorerSection = {
 
 const relatedMeasurablesSection = {
     componentId: "related-measurables-section",
-    name: "Related Viewpoints",
+    name: "Viewpoints",
     icon: "link",
     id: 22
 };
 
 const relatedDataTypesSection = {
     componentId: "related-data-type-section",
-    name: "Related Types",
+    name: "Types",
     icon: "qrcode",
     id: 23
 };
 
 const relatedAppsSection = {
     componentId: "related-apps-section",
-    name: "Related Apps",
+    name: "Apps",
     icon: "desktop",
     id: 24
 };
 
 const relatedAppGroupsSection = {
     componentId: "related-app-groups-section",
-    name: "Related Groups",
+    name: "Groups",
     icon: "object-group",
     id: 25
 };
@@ -317,6 +313,7 @@ const reportGridViewSection = {
     id: 170
 };
 
+
 const appCostsSummarySection = {
     componentId: "app-costs-summary-section",
     name: "Application Costs",
@@ -366,6 +363,13 @@ const appComplexitySummarySection = {
     id: 240
 };
 
+const entityAttestationSection = {
+    componentId: "attestation-section",
+    name: "Attestations",
+    icon: "check-square-o",
+    id: 10001
+};
+
 export const dynamicSections = {
     appCostsSection,
     appCostsSummarySection,
@@ -380,10 +384,10 @@ export const dynamicSections = {
     changeLogSection,
     changeSetSection,
     changeUnitSection,
-    complexitySection,
     dataFlowSection,
     dataTypeFlowSection,
     dataTypeOriginatorsSection,
+    entityAttestationSection,
     entityCostsSection,
     entityDiagramsSection,
     entityNamedNotesSection,
@@ -427,6 +431,7 @@ function pack(section, children = []) {
 }
 
 
+
 export const dynamicSectionsByKind = {
     "APPLICATION": [
         assessmentRatingSection,
@@ -434,6 +439,7 @@ export const dynamicSectionsByKind = {
         changeInitiativeSection,
         changeSetSection,
         dataFlowSection,
+        entityAttestationSection,
         entityCostsSection,
         entityDiagramsSection,
         entityNamedNotesSection,
@@ -522,6 +528,7 @@ export const dynamicSectionsByKind = {
         appsSection,
         entityNamedNotesSection,
         bookmarksSection,
+        entityDiagramsSection,
         involvedPeopleSection,
         authSourcesSection,
         dataTypeOriginatorsSection,
@@ -618,6 +625,18 @@ export const dynamicSectionsByKind = {
     ],
     "ENTITY_RELATIONSHIP": [
         assessmentRatingSection,
+        bookmarksSection,
+        changeLogSection,
+        entityNamedNotesSection,
+        involvedPeopleSection
+    ],
+    "DATABASE": [
+        appsSection,
+        entityNamedNotesSection,
+        bookmarksSection,
+        changeLogSection,
+    ],
+    "AUTHORITATIVE_SOURCE": [
         bookmarksSection,
         changeLogSection,
         entityNamedNotesSection,

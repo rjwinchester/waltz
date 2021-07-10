@@ -18,9 +18,9 @@
 
 package com.khartec.waltz.web.endpoints.api;
 
-import com.khartec.waltz.model.notification.NotificationSummary;
+import com.khartec.waltz.model.notification.NotificationResponse;
 import com.khartec.waltz.service.notification.NotificationService;
-import com.khartec.waltz.web.ListRoute;
+import com.khartec.waltz.web.DatumRoute;
 import com.khartec.waltz.web.WebUtilities;
 import com.khartec.waltz.web.endpoints.Endpoint;
 import org.slf4j.Logger;
@@ -31,8 +31,7 @@ import org.springframework.stereotype.Service;
 import static com.khartec.waltz.common.Checks.checkNotNull;
 import static com.khartec.waltz.web.WebUtilities.getUsername;
 import static com.khartec.waltz.web.WebUtilities.mkPath;
-import static com.khartec.waltz.web.endpoints.EndpointUtilities.getForList;
-
+import static com.khartec.waltz.web.endpoints.EndpointUtilities.getForDatum;
 
 @Service
 public class NotificationEndpoint implements Endpoint {
@@ -54,12 +53,12 @@ public class NotificationEndpoint implements Endpoint {
     @Override
     public void register() {
 
-        String findNotificationsByUserIdPath = mkPath(BASE_URL);
+        String getNotificationsByUserIdPath = mkPath(BASE_URL);
 
-        ListRoute<NotificationSummary> findNotificationsByUserIdRoute = (request, response)
-                -> notificationService.findNotificationsByUserId(getUsername(request));
+        DatumRoute<NotificationResponse> getNotificationsByUserIdRoute = (request, response)
+                -> notificationService.getNotificationsByUserId(getUsername(request));
 
-        getForList(findNotificationsByUserIdPath, findNotificationsByUserIdRoute);
+        getForDatum(getNotificationsByUserIdPath, getNotificationsByUserIdRoute);
     }
 
 }

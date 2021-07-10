@@ -30,7 +30,7 @@ const initialState = {
     issuedAndCompletedRuns: [],
     issuedAndCompletedRunsEnriched: [],
     draftRuns: [],
-    questionInfos: [],
+    questions: [],
     runCompletionRates: {}
 };
 
@@ -106,7 +106,7 @@ function mkColumnDefs() {
                        ng-if="row.entity.isRunOwnedByLoggedInUser"
                        uib-popover="Delete this Survey Run"
                        popover-placement="left"
-                       popover-trigger="mouseenter" 
+                       popover-trigger="mouseenter"
                        class="btn btn-xs btn-danger waltz-visibility-child-30">
                         <waltz-icon name="trash-o"></waltz-icon>
                     </a>
@@ -135,13 +135,13 @@ function controller($q,
     const templateId = $stateParams.id;
 
     // template
-    serviceBroker
+    const templatePromise = serviceBroker
         .loadViewData(CORE_API.SurveyTemplateStore.getById, [ templateId ])
         .then(r => {
             const template= r.data;
             if (template) {
                 vm.template = template;
-                serviceBroker
+                return serviceBroker
                     .loadViewData(CORE_API.PersonStore.getById, [ template.ownerId ])
                     .then(r => vm.owner = r.data);
             }
@@ -157,8 +157,11 @@ function controller($q,
             .loadViewData(CORE_API.SurveyRunStore.findByTemplateId, [templateId], { force: true })
             .then(r => r.data);
 
-        $q.all([userPromise, runsPromise])
+        $q.all([userPromise, runsPromise, templatePromise])
             .then(([user, runsData]) => {
+
+                vm.isOwnerOrAdmin = user.userName === vm.owner.email || _.includes(user.roles, "ADMIN");
+
                 [vm.issuedAndCompleted, vm.draft] = _
                     .chain(runsData)
                     .map(d => {
@@ -178,8 +181,8 @@ function controller($q,
 
     // questions
     serviceBroker
-        .loadViewData(CORE_API.SurveyQuestionStore.findForTemplate, [templateId])
-        .then(r => vm.questionInfos = r.data);
+        .loadViewData(CORE_API.SurveyQuestionStore.findQuestionsForTemplate, [templateId])
+        .then(r => vm.questions = r.data);
 
     const updateTemplateStatus = (newStatus, successMessage) => {
         serviceBroker
@@ -205,6 +208,9 @@ function controller($q,
             updateTemplateStatus("DRAFT", "Survey template successfully marked as Draft");
         }
     };
+
+    vm.noRuns = () =>  _.isEmpty(vm.issuedAndCompleted)  && _.isEmpty(vm.draft);
+
 
     vm.markTemplateAsObsolete = () => {
         if (confirm("Are you sure you wish to mark this template as obsolete ?")) {
@@ -240,6 +246,21 @@ function controller($q,
                 });
         }
     };
+
+
+    vm.removeTemplate = () => {
+        if(confirm("Are you sure you want to delete this survey template? Any questions will also be deleted.")){
+            serviceBroker
+                .execute(CORE_API.SurveyTemplateStore.remove, [vm.template.id])
+                .then(() => {
+                    notification.warning("Survey template deleted");
+                    $state.go("main.survey.template.list");
+                })
+                .catch(e => {
+                    displayError(notification, "Survey template could not be deleted", e);
+                });
+        }
+    }
 }
 
 

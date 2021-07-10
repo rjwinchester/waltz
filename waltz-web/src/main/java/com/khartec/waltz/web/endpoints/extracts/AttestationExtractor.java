@@ -22,6 +22,7 @@ import com.khartec.waltz.data.application.ApplicationIdSelectorFactory;
 import com.khartec.waltz.model.EntityKind;
 import com.khartec.waltz.model.EntityReference;
 import com.khartec.waltz.model.IdSelectionOptions;
+import com.khartec.waltz.model.application.LifecyclePhase;
 import com.khartec.waltz.schema.tables.AttestationInstance;
 import com.khartec.waltz.web.json.AttestationStatus;
 import org.jooq.*;
@@ -73,11 +74,12 @@ public class AttestationExtractor extends DirectQueryBasedDataExtractor {
             EntityReference entityReference = idSelectionOptions.entityReference();
             EntityKind kind = getKind(request);
             Optional<Integer> year = getYearParam(request);
-            AttestationStatus status = getStatusParam(request);
+            Optional<LifecyclePhase> lifecycle = getLifecycleParam(request);
+            Optional<AttestationStatus> status = getStatusParam(request);
 
             String fileName = format(
                     "%s-for-%s-%s-%s",
-                    status,
+                    status.map(Enum::name).orElse("ALL_ATTESTATIONS"),
                     entityReference.kind().name().toLowerCase(),
                     entityReference.id(),
                     kind.name().toLowerCase());
@@ -87,6 +89,7 @@ public class AttestationExtractor extends DirectQueryBasedDataExtractor {
                     appSelector,
                     kind,
                     year,
+                    lifecycle,
                     status);
 
             return writeExtract(
@@ -101,7 +104,8 @@ public class AttestationExtractor extends DirectQueryBasedDataExtractor {
     private SelectConditionStep<Record> mkQueryForReportingAttestationsByKindAndSelector(Select<Record1<Long>> appIds,
                                                                                          EntityKind kind,
                                                                                          Optional<Integer> year,
-                                                                                         AttestationStatus status) {
+                                                                                         Optional<LifecyclePhase> lifecycle,
+                                                                                         Optional<AttestationStatus> status) {
 
         AttestationInstance latestAttestationInstance = ATTESTATION_INSTANCE.as("latestAttestationInstance");
         AttestationInstance attestationInstanceForPerson= ATTESTATION_INSTANCE.as("attestationInstanceForPerson");
@@ -134,9 +138,15 @@ public class AttestationExtractor extends DirectQueryBasedDataExtractor {
                 .map(y -> DSL.year((peopleToAttest.field(attestationInstanceForPerson.ATTESTED_AT))).eq(year.get()))
                 .orElse(DSL.trueCondition());
 
-        Condition statusCondition = status == AttestationStatus.NEVER_ATTESTED
-                ? peopleToAttest.field(attestationInstanceForPerson.ATTESTED_AT).isNull()
-                : peopleToAttest.field(attestationInstanceForPerson.ATTESTED_AT).isNotNull();
+        Condition lifecycleCondition = lifecycle
+                .map(l -> APPLICATION.LIFECYCLE_PHASE.eq(l.name()))
+                .orElse(DSL.trueCondition());
+
+        Condition statusCondition = status
+                .map(s -> s.equals(AttestationStatus.NEVER_ATTESTED)
+                        ? peopleToAttest.field(attestationInstanceForPerson.ATTESTED_AT).isNull()
+                        : peopleToAttest.field(attestationInstanceForPerson.ATTESTED_AT).isNotNull())
+                .orElse(DSL.trueCondition());
 
         return dsl
                 .select(APPLICATION.NAME.as("Name"),
@@ -150,6 +160,7 @@ public class AttestationExtractor extends DirectQueryBasedDataExtractor {
                 .leftJoin(peopleToAttest)
                 .on(APPLICATION.ID.eq(entityPersonIsAttesting))
                 .where(APPLICATION.ID.in(appIds))
+                .and(lifecycleCondition)
                 .and(yearCondition)
                 .and(statusCondition);
     }
@@ -210,8 +221,19 @@ public class AttestationExtractor extends DirectQueryBasedDataExtractor {
     }
 
 
-    private AttestationStatus getStatusParam(Request request) {
-        return AttestationStatus.valueOf(request.queryParams("status"));
+    private Optional<LifecyclePhase> getLifecycleParam(Request request) {
+        String lifecycleVal = request.queryParams("lifecycle");
+        return Optional
+                .ofNullable(lifecycleVal)
+                .map(LifecyclePhase::valueOf);
+    }
+
+
+    private Optional<AttestationStatus> getStatusParam(Request request) {
+        String status = request.queryParams("status");
+        return Optional
+                .ofNullable(status)
+                .map(AttestationStatus::valueOf);
     }
 
 }

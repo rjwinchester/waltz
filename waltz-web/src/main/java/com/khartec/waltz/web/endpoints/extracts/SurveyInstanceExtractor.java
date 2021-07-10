@@ -61,6 +61,7 @@ import static com.khartec.waltz.schema.tables.SurveyRun.SURVEY_RUN;
 import static com.khartec.waltz.schema.tables.SurveyTemplate.SURVEY_TEMPLATE;
 import static com.khartec.waltz.web.WebUtilities.getId;
 import static com.khartec.waltz.web.WebUtilities.mkPath;
+import static com.khartec.waltz.web.endpoints.extracts.ExtractorUtilities.sanitizeSheetName;
 import static java.util.Optional.ofNullable;
 import static java.util.stream.Collectors.toList;
 import static org.jooq.lambda.fi.util.function.CheckedConsumer.unchecked;
@@ -231,7 +232,8 @@ public class SurveyInstanceExtractor implements DataExtractor {
                     "SUBMITTED_BY",
                     "APPROVED_AT",
                     "APPROVED_BY",
-                    "Latest");
+                    "Latest",
+                    "EXTERNAL_ID");
 
         List<String> questionHeaders = questions
                 .stream()
@@ -349,18 +351,19 @@ public class SurveyInstanceExtractor implements DataExtractor {
     private List<List<Object>> prepareReportRows(List<SurveyQuestion> questions, Condition condition) {
 
         SelectConditionStep<Record> extractAnswersQuery = dsl
-                .select(sr.NAME, sr.ID, st.STATUS)
+                .selectDistinct(sr.NAME, sr.ID, st.STATUS)
                 .select(subjectNameField, subjectExtIdField)
                 .select(si.ID, si.STATUS, si.APPROVED_AT, si.APPROVED_BY, si.SUBMITTED_AT, si.SUBMITTED_BY)
                 .select(sqr.QUESTION_ID, sqr.COMMENT)
                 .select(sqr.STRING_RESPONSE, sqr.NUMBER_RESPONSE, sqr.DATE_RESPONSE, sqr.BOOLEAN_RESPONSE, sqr.LIST_RESPONSE_CONCAT)
                 .select(responseNameField, responseExtIdField)
                 .select(DSL.when(si.ORIGINAL_INSTANCE_ID.isNull(), "Yes").else_("No").as("Latest"))
+                .select(st.EXTERNAL_ID)
                 .from(st)
                 .innerJoin(sr).on(sr.SURVEY_TEMPLATE_ID.eq(st.ID))
                 .innerJoin(si).on(si.SURVEY_RUN_ID.eq(sr.ID))
                 .innerJoin(sq).on(sq.SURVEY_TEMPLATE_ID.eq(st.ID))
-                .innerJoin(sqr).on(sqr.SURVEY_INSTANCE_ID.eq(si.ID).and(sqr.QUESTION_ID.eq(sq.ID)))
+                .leftJoin(sqr).on(sqr.SURVEY_INSTANCE_ID.eq(si.ID).and(sqr.QUESTION_ID.eq(sq.ID)))
                 .where(condition);
 
         Result<Record> results = extractAnswersQuery.fetch();
@@ -384,6 +387,7 @@ public class SurveyInstanceExtractor implements DataExtractor {
                         reportRow.add(firstAnswer.get(si.APPROVED_AT));
                         reportRow.add(firstAnswer.get(si.APPROVED_BY));
                         reportRow.add(firstAnswer.get("Latest"));
+                        reportRow.add(firstAnswer.get(st.EXTERNAL_ID));
 
                         Map<Long, Record> answersByQuestionId = indexBy(
                                 answersForInstance,

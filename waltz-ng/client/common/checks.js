@@ -17,7 +17,7 @@
  */
 import _ from "lodash";
 import apiCheck from "api-check";
-import { notEmpty } from "./index";
+import {notEmpty} from "./index";
 
 
 const myApiCheck = apiCheck({ verbose: false });
@@ -107,7 +107,18 @@ const authSourceCreateCommand = {
     rating: apiCheck.string,
     applicationId: apiCheck.number,
     dataTypeId: apiCheck.number,
-    orgUnitId: apiCheck.number
+    parentReference: apiCheck.shape(entityRefShape)
+};
+
+const customEnvironmentShape = {
+    name: apiCheck.string,
+    owningEntity: myApiCheck.shape(entityRefShape),
+    externalId: apiCheck.string,
+};
+
+const customEnvironmentUsageShape = {
+    customEnvironmentId: apiCheck.number,
+    entityReference: myApiCheck.shape(entityRefShape),
 };
 
 const serviceBrokerCacheRefreshListenerShape = {
@@ -122,7 +133,8 @@ const serviceBrokerOptionsShape = {
 
 const dynamicSectionShape = {
     id: apiCheck.number,
-    componentId: apiCheck.string,
+    componentId: apiCheck.string.optional,
+    svelteComponent: apiCheck.func.optional,
     name: apiCheck.string,
     icon: apiCheck.string
 };
@@ -246,6 +258,14 @@ export const checkIsAuthSourceUpdateCommand = (target) => {
 
 export const checkIsAuthSourceCreateCommand = (target) => {
     check(myApiCheck.shape(authSourceCreateCommand), target);
+};
+
+export const checkIsCustomEnvironment = (target) => {
+    check(myApiCheck.shape(customEnvironmentShape), target);
+};
+
+export const checkIsCustomEnvironmentUsage = (target) => {
+    check(myApiCheck.shape(customEnvironmentUsageShape), target);
 };
 
 export const checkIsServiceBrokerOptions = (options) => {

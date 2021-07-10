@@ -1,4 +1,3 @@
-
 /*
  * Waltz - Enterprise Architecture
  * Copyright (C) 2016, 2017, 2018, 2019 Waltz open source project
@@ -17,25 +16,30 @@
  *
  */
 
-import angular from 'angular';
-import * as authSourcesStore from './services/auth-sources-store';
-import * as AuthSourceEditorPanel from './components/editor/auth-source-editor-panel';
-import * as AuthSourcesTable from './components/table/auth-sources-table';
-import * as NonAuthSourcesPanel from './components/non-auth-sources-panel/non-auth-sources-panel';
-import * as AuthSourcesSection from './components/section/auth-sources-section';
-import * as AuthSourcesSummaryPanel from './components/summary-panel/auth-sources-summary-panel';
-import * as TreePicker from './components/tree-picker/tree-picker';
-import * as TreeFilter from './components/tree-filter/tree-filter';
-import {registerComponents, registerStore} from '../common/module-utils';
-import RatingIndicator from './directives/rating-indicator';
+import angular from "angular";
+import * as authSourcesStore from "./services/auth-sources-store";
+import * as AuthSourceEditorPanel from "./components/editor/auth-source-editor-panel";
+import * as AuthSourcesTable from "./components/table/auth-sources-table";
+import AuthSourceSummaryList from "./components/auth-source-summary-list/auth-source-summary-list"
+import AuthSourceView from "./pages/view/auth-source-view"
+import * as NonAuthSourcesPanel from "./components/non-auth-sources-panel/non-auth-sources-panel";
+import * as AuthSourcesSection from "./components/section/auth-sources-section";
+import * as AuthSourcesSummaryPanel from "./components/summary-panel/auth-sources-summary-panel";
+import * as TreePicker from "./components/tree-picker/tree-picker";
+import * as TreeFilter from "./components/tree-filter/tree-filter";
+import {registerComponents, registerStore} from "../common/module-utils";
+import RatingIndicator from "./directives/rating-indicator";
+import routes from "./routes";
 
 
 export default () => {
 
-    const module = angular.module('waltz.auth.sources', []);
+    const module = angular.module("waltz.auth.sources", []);
+
+    module.config(routes);
 
     module
-        .directive('waltzRatingIndicator', RatingIndicator);
+        .directive("waltzRatingIndicator", RatingIndicator);
 
     registerStore(
         module,
@@ -44,9 +48,11 @@ export default () => {
         module,
         [
             AuthSourceEditorPanel,
+            AuthSourceSummaryList,
             AuthSourcesTable,
             AuthSourcesSection,
             AuthSourcesSummaryPanel,
+            AuthSourceView,
             TreePicker,
             TreeFilter,
             NonAuthSourcesPanel

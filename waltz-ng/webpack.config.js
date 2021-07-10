@@ -33,7 +33,12 @@ module.exports = {
         filename: "[name].[contenthash].js"
     },
     resolve: {
-        symlinks: false
+        symlinks: false,
+        alias: {
+            svelte: path.resolve("node_modules", "svelte")
+        },
+        extensions: [".svelte", ".js"],
+        mainFields: ["svelte", "browser", "module", "main"]
     },
     optimization: {
         runtimeChunk: "single",
@@ -42,9 +47,6 @@ module.exports = {
             minSize: 30000,
             maxSize: 600000,
             minChunks: 1,
-            maxAsyncRequests: 8,
-            maxInitialRequests: 4,
-            automaticNameDelimiter: "~",
             name: true,
             cacheGroups: {
                 vendors: {
@@ -80,11 +82,26 @@ module.exports = {
     module: {
         rules: [
             {
-                test: /\.jsx?$/,
-                use: ["babel-loader"],
-                exclude: /node_modules/
+                test: /\.svelte$/,
+                use: [
+                    { loader: "babel-loader" },
+                    {
+                        loader: "svelte-loader",
+                        options: {
+                            preprocess: require('svelte-preprocess')({
+                                // postcss: true
+                            }),
+                            emitCss: true,
+                            hotReload: true
+                        }
+                    }
+                ],
+
             }, {
-                test: /\.scss$/,
+                test: /(\.m?jsx?$)/,
+                use: ["babel-loader"]
+            }, {
+                test: /\.s?css$/,
                 use: [
                     {
                         loader: "thread-loader",
@@ -95,9 +112,6 @@ module.exports = {
                     "style-loader",
                     "css-loader",
                     "sass-loader"]
-            }, {
-                test: /\.css$/,
-                use: ["style-loader", "css-loader"]
             }, {
                 test: /\.(ttf|eot|svg|woff(2)?)(\?v=[0-9]\.[0-9]\.[0-9])?$/,
                 loader: "url-loader",

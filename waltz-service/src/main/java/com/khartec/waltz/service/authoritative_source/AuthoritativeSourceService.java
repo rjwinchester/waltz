@@ -18,22 +18,23 @@
 
 package com.khartec.waltz.service.authoritative_source;
 
+import com.khartec.waltz.common.exception.NotFoundException;
 import com.khartec.waltz.data.GenericSelector;
 import com.khartec.waltz.data.GenericSelectorFactory;
+import com.khartec.waltz.data.actor.ActorDao;
 import com.khartec.waltz.data.application.ApplicationDao;
 import com.khartec.waltz.data.application.ApplicationIdSelectorFactory;
 import com.khartec.waltz.data.authoritative_source.AuthoritativeSourceDao;
 import com.khartec.waltz.data.data_type.DataTypeDao;
 import com.khartec.waltz.data.data_type.DataTypeIdSelectorFactory;
-import com.khartec.waltz.data.orgunit.OrganisationalUnitDao;
 import com.khartec.waltz.data.datatype_decorator.LogicalFlowDecoratorDao;
+import com.khartec.waltz.data.orgunit.OrganisationalUnitDao;
 import com.khartec.waltz.model.*;
 import com.khartec.waltz.model.application.Application;
 import com.khartec.waltz.model.authoritativesource.*;
 import com.khartec.waltz.model.changelog.ChangeLog;
 import com.khartec.waltz.model.changelog.ImmutableChangeLog;
 import com.khartec.waltz.model.datatype.DataType;
-import com.khartec.waltz.model.orgunit.OrganisationalUnit;
 import com.khartec.waltz.model.rating.AuthoritativenessRating;
 import com.khartec.waltz.service.changelog.ChangeLogService;
 import org.jooq.Condition;
@@ -51,11 +52,13 @@ import java.util.List;
 import java.util.Map;
 
 import static com.khartec.waltz.common.Checks.checkNotNull;
+import static com.khartec.waltz.model.EntityKind.ACTOR;
 import static com.khartec.waltz.model.EntityKind.ORG_UNIT;
 import static com.khartec.waltz.model.EntityReference.mkRef;
 import static com.khartec.waltz.schema.tables.AuthoritativeSource.AUTHORITATIVE_SOURCE;
 import static com.khartec.waltz.schema.tables.DataType.DATA_TYPE;
 import static com.khartec.waltz.schema.tables.LogicalFlowDecorator.LOGICAL_FLOW_DECORATOR;
+import static java.lang.String.format;
 
 
 @Service
@@ -67,6 +70,7 @@ public class AuthoritativeSourceService {
     private final DataTypeDao dataTypeDao;
     private final OrganisationalUnitDao organisationalUnitDao;
     private final ApplicationDao applicationDao;
+    private final ActorDao actorDao;
     private final AuthSourceRatingCalculator ratingCalculator;
     private final ChangeLogService changeLogService;
     private final LogicalFlowDecoratorDao logicalFlowDecoratorDao;
@@ -80,10 +84,12 @@ public class AuthoritativeSourceService {
                                       DataTypeDao dataTypeDao,
                                       OrganisationalUnitDao organisationalUnitDao,
                                       ApplicationDao applicationDao,
+                                      ActorDao actorDao,
                                       AuthSourceRatingCalculator ratingCalculator,
                                       ChangeLogService changeLogService,
                                       LogicalFlowDecoratorDao logicalFlowDecoratorDao) {
         checkNotNull(authoritativeSourceDao, "authoritativeSourceDao must not be null");
+        checkNotNull(actorDao, "actorDao must not be null");
         checkNotNull(dataTypeDao, "dataTypeDao cannot be null");
         checkNotNull(organisationalUnitDao, "organisationalUnitDao cannot be null");
         checkNotNull(applicationDao, "applicationDao cannot be null");
@@ -95,6 +101,7 @@ public class AuthoritativeSourceService {
         this.dataTypeDao = dataTypeDao;
         this.organisationalUnitDao = organisationalUnitDao;
         this.applicationDao = applicationDao;
+        this.actorDao = actorDao;
         this.ratingCalculator = ratingCalculator;
         this.changeLogService = changeLogService;
         this.logicalFlowDecoratorDao = logicalFlowDecoratorDao;
@@ -134,19 +141,41 @@ public class AuthoritativeSourceService {
 
 
     public int insert(AuthoritativeSourceCreateCommand command, String username) {
-        int insertedCount = authoritativeSourceDao.insert(command);
-        ratingCalculator.update(command.dataTypeId(), mkRef(ORG_UNIT, command.orgUnitId()));
+        int authSourceId = authoritativeSourceDao.insert(command, username);
+
+        if (command.parentReference().kind() == ORG_UNIT) {
+            ratingCalculator.update(command.dataTypeId(), command.parentReference());
+        }
+
         logInsert(command, username);
-        return insertedCount;
+        authoritativeSourceDao.updatePointToPointAuthStatements();
+
+        return authSourceId;
     }
 
 
     public int remove(long id, String username) {
 
-        logRemoval(id, username);
         AuthoritativeSource authSourceToDelete = getById(id);
+
+        if(authSourceToDelete == null){
+            throw new NotFoundException("ASRM-NF", "Authoritative source not found");
+        }
+
+        logRemoval(id, username);
+
         int deletedCount = authoritativeSourceDao.remove(id);
-        ratingCalculator.update(authSourceToDelete.dataType(), authSourceToDelete.parentReference());
+
+        //set any point-to-point overrides as no opinion first then recalculate for all auth
+        LOG.debug("Updating point-point ratings");
+        authoritativeSourceDao.clearAuthRatingsForPointToPointFlows(authSourceToDelete);
+
+        LOG.debug("Updated point-point");
+        if(authSourceToDelete.parentReference().kind() != ACTOR){
+            LOG.debug("Updating org unit /app flow ratings");
+            ratingCalculator.update(authSourceToDelete.dataType(), authSourceToDelete.parentReference());
+        }
+
         return deletedCount;
     }
 
@@ -169,12 +198,22 @@ public class AuthoritativeSourceService {
 
     public boolean fastRecalculateAllFlowRatings() {
         logicalFlowDecoratorDao.updateRatingsByCondition(AuthoritativenessRating.NO_OPINION, DSL.trueCondition());
-        List<AuthoritativeRatingVantagePoint> authoritativeRatingVantagePoints = authoritativeSourceDao.findAuthoritativeRatingVantagePoints();
-        authoritativeRatingVantagePoints.forEach(a -> {
+
+        //finds all the vantage points to apply using parent as selector
+        List<AuthoritativeRatingVantagePoint> authoritativeRatingVantagePoints = authoritativeSourceDao
+                .findAuthoritativeRatingVantagePoints();
+
+        authoritativeRatingVantagePoints
+                .forEach(a -> {
             LOG.info("Updating decorators for: {}", a);
             int updateCount = logicalFlowDecoratorDao.updateDecoratorsForAuthSource(a);
             LOG.info("Updated {} decorators for: {}", updateCount, a);
         });
+
+        //overrides Auth Statement for point to point flows (must run after the above)
+        int updatedDecoratorRatings = authoritativeSourceDao.updatePointToPointAuthStatements();
+        LOG.info("Updated decorators for: {} point-to-point flows", updatedDecoratorRatings);
+
         return true;
     }
 
@@ -287,39 +326,56 @@ public class AuthoritativeSourceService {
             return;
         }
 
-        OrganisationalUnit orgUnit = organisationalUnitDao.getById(authSource.parentReference().id());
+        String parentName = getParentEntityName(authSource.parentReference());
         DataType dataType = dataTypeDao.getByCode(authSource.dataType());
         Application app = applicationDao.getById(authSource.applicationReference().id());
 
 
-        if (app != null && dataType != null && orgUnit != null) {
-            String msg = String.format(
-                    "Removed %s as an authoritative source for type: %s for org: %s",
+        if (app != null && dataType != null && parentName != null) {
+            String msg = format(
+                    "Removed %s as an authoritative source for type: %s for %s: %s",
                     app.name(),
                     dataType.name(),
-                    orgUnit.name());
+                    authSource.parentReference().kind().prettyName(),
+                    parentName);
 
-            tripleLog(username, orgUnit, dataType, app, msg, Operation.REMOVE);
+            tripleLog(username, authSource.parentReference(), dataType, app, msg, Operation.REMOVE);
         }
     }
-
 
 
     private void logInsert(AuthoritativeSourceCreateCommand command, String username) {
-        OrganisationalUnit orgUnit = organisationalUnitDao.getById(command.orgUnitId());
+
+        String parentName = getParentEntityName(command.parentReference());
         DataType dataType = dataTypeDao.getById(command.dataTypeId());
         Application app = applicationDao.getById(command.applicationId());
 
-        if (app != null && dataType != null && orgUnit != null) {
-            String msg = String.format(
-                    "Registered %s as an authoritative source for type: %s for org: %s",
+        if (app != null && dataType != null && parentName != null) {
+            String msg = format(
+                    "Registered %s as an authoritative source for type: %s for %s: %s",
                     app.name(),
                     dataType.name(),
-                    orgUnit.name());
+                    command.parentReference().kind().prettyName(),
+                    parentName);
 
-            tripleLog(username, orgUnit, dataType, app, msg, Operation.ADD);
+            tripleLog(username, command.parentReference(), dataType, app, msg, Operation.ADD);
         }
     }
+
+
+    private String getParentEntityName(EntityReference entityReference) {
+        switch (entityReference.kind()) {
+            case ORG_UNIT:
+                return organisationalUnitDao.getById(entityReference.id()).name();
+            case APPLICATION:
+                return applicationDao.getById(entityReference.id()).name();
+            case ACTOR:
+                return actorDao.getById(entityReference.id()).name();
+            default:
+                throw new IllegalArgumentException(format("Cannot find name for entity kind: %s", entityReference.kind()));
+        }
+    }
+
 
     private void logUpdate(AuthoritativeSourceUpdateCommand command, String username) {
         AuthoritativeSource authSource = getById(command.id().get());
@@ -327,42 +383,48 @@ public class AuthoritativeSourceService {
             return;
         }
 
-        OrganisationalUnit orgUnit = organisationalUnitDao.getById(authSource.parentReference().id());
+        String parentName = getParentEntityName(authSource.parentReference());
         DataType dataType = dataTypeDao.getByCode(authSource.dataType());
         Application app = applicationDao.getById(authSource.applicationReference().id());
 
-        if (app != null && dataType != null && orgUnit != null) {
-            String msg = String.format(
-                    "Updated %s as an authoritative source for type: %s for org: %s",
+        if (app != null && dataType != null && parentName != null) {
+            String msg = format(
+                    "Updated %s as an authoritative source for type: %s for %s: %s",
                     app.name(),
                     dataType.name(),
-                    orgUnit.name());
+                    authSource.parentReference().kind().prettyName(),
+                    parentName);
 
-            tripleLog(username, orgUnit, dataType, app, msg, Operation.UPDATE);
+            tripleLog(username, authSource.parentReference(), dataType, app, msg, Operation.UPDATE);
         }
     }
 
 
-    private void tripleLog(String username, OrganisationalUnit orgUnit, DataType dataType, Application app, String msg, Operation operation) {
-        ChangeLog ouLog = ImmutableChangeLog.builder()
+    private void tripleLog(String username,
+                           EntityReference parentRef,
+                           DataType dataType,
+                           Application app,
+                           String msg,
+                           Operation operation) {
+
+        ChangeLog parentLog = ImmutableChangeLog.builder()
                 .message(msg)
                 .severity(Severity.INFORMATION)
                 .userId(username)
-                .parentReference(mkRef(ORG_UNIT, orgUnit.id().get()))
-                .childKind(EntityKind.APPLICATION)
+                .parentReference(parentRef)
+                .childKind(EntityKind.AUTHORITATIVE_SOURCE)
                 .operation(operation)
                 .build();
 
         ChangeLog appLog = ImmutableChangeLog
-                .copyOf(ouLog)
-                .withParentReference(mkRef(EntityKind.APPLICATION, app.id().get()))
-                .withChildKind(ORG_UNIT);
+                .copyOf(parentLog)
+                .withParentReference(mkRef(EntityKind.APPLICATION, app.id().get()));
 
         ChangeLog dtLog = ImmutableChangeLog
-                .copyOf(ouLog)
+                .copyOf(parentLog)
                 .withParentReference(mkRef(EntityKind.DATA_TYPE, dataType.id().get()));
 
-        changeLogService.write(ouLog);
+        changeLogService.write(parentLog);
         changeLogService.write(appLog);
         changeLogService.write(dtLog);
     }

@@ -31,13 +31,16 @@ import static com.khartec.waltz.model.EndOfLifeStatus.calculateEndOfLifeStatus;
 @JsonSerialize(as = ImmutableDatabaseInformation.class)
 @JsonDeserialize(as = ImmutableDatabaseInformation.class)
 public abstract class DatabaseInformation implements
-        AssetCodeProvider,
+        IdProvider,
         ProvenanceProvider,
-        ExternalIdProvider {
+        ExternalIdProvider,
+        WaltzEntity,
+        CustomEnvironmentAsset,
+        EntityKindProvider {
+
 
     public abstract String databaseName();
     public abstract String instanceName();
-    public abstract String environment();
     public abstract String dbmsName();
     public abstract String dbmsVersion();
     public abstract String dbmsVendor();
@@ -53,4 +56,19 @@ public abstract class DatabaseInformation implements
         return calculateEndOfLifeStatus(endOfLifeDate());
     }
 
+
+    @Value.Default
+    public EntityKind kind(){
+        return EntityKind.DATABASE;
+    }
+
+
+    public EntityReference entityReference() {
+        return ImmutableEntityReference.builder()
+                .kind(EntityKind.DATABASE)
+                .id(id().get())
+                .name(databaseName())
+                .entityLifecycleStatus(EntityLifecycleStatus.ACTIVE)
+                .build();
+    }
 }

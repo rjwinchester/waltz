@@ -16,254 +16,103 @@
  *
  */
 import _ from "lodash";
-import { ifPresent } from "../../common/function-utils";
-import { positionFor, toGraphFlow, toGraphId, toGraphNode } from "../flow-diagram-utils";
-import { toEntityRef } from "../../common/entity-utils";
-
-
-const initialState = {
-    dirty: false,
-    model: {
-        diagramId: null,
-        nodes: [],
-        flows: [],
-        decorations: {},
-        annotations: []
-    },
-    layout: {
-        positions: {}, // gid -> {  x, y }
-        shapes: {}, // gid -> { path, cx, cy, etc} }
-        diagramTransform: null
-    },
-    visibility: {
-        layers: {
-            flowBuckets: true,
-            annotations: true,
-            pendingFlows: true,
-            removedFlows: true
-        }
-    },
-    detail: {
-        applicationsById: {}
-    }
-};
-
-
-let state = _.cloneDeep(initialState);
-
-
-function toRef(d) {
-    return {
-        kind: d.data.kind,
-        id: d.data.id
-    };
-}
-
-
-function prepareSaveCmd(state) {
-    const nodes = _.map(state.model.nodes, n => {
-        return {
-            entityReference: toRef(n),
-            isNotable: false
-        };
-    });
-
-    const flows = _.map(state.model.flows, f => {
-        return {
-            entityReference: toRef(f)
-        };
-    });
-
-    const decorations = _
-        .chain(state.model.decorations)
-        .values()
-        .flatten()
-        .map(d => {
-            return {
-                entityReference: toRef(d),
-                isNotable: false
-            };
-        })
-        .value();
-
-    const entities = _.concat(nodes, flows, decorations);
-
-    const layoutData = {
-        positions: state.layout.positions,
-        diagramTransform: ifPresent(
-            state.layout.diagramTransform,
-            x => x.toString(),
-            "translate(0,0) scale(1)")
-    };
-
-    const annotations = _.map(state.model.annotations, a => {
-        const ref = a.data.entityReference;
-        return {
-            entityReference: { kind: ref.kind, id: ref.id },
-            note: a.data.note,
-            annotationId: a.data.id
-        }
-    });
-
-    return {
-        diagramId: state.diagramId,
-        name: state.model.title,
-        description: state.model.description,
-        entities,
-        annotations,
-        layoutData: JSON.stringify(layoutData)
-    };
-}
-
+import {ifPresent} from "../../common/function-utils";
+import {toGraphFlow, toGraphId, toGraphNode} from "../flow-diagram-utils";
+import {toEntityRef} from "../../common/entity-utils";
+import {mkSelectionOptions} from "../../common/selector-utils";
+import newModel from "../components/diagram-svelte/store/model"
+import {diagramTransform, positions} from "../components/diagram-svelte/store/layout";
+import dirty from "../components/diagram-svelte/store/dirty";
+import overlay from "../components/diagram-svelte/store/overlay";
+import {diagram} from "../components/diagram-svelte/store/diagram";
 
 function restoreDiagram(
-    commandProcessor,
-    diagram,
+    flowDiagram,
     annotations = [],
     entityNodes = [],
     logicalFlows = [],
-    physicalFlows = [])
-{
-    const layoutData = JSON.parse(diagram.layoutData);
+    physicalFlows = []) {
+
+    diagram.set(flowDiagram);
+
+    const layoutData = JSON.parse(flowDiagram.layoutData);
     const logicalFlowsById = _.keyBy(logicalFlows, "id");
-    const flowCommands = _
-        .chain(entityNodes)
+
+    // nodes
+    _.chain(entityNodes)
+        .filter(ent => _.includes(["APPLICATION", "ACTOR"], ent.entityReference.kind))
+        .forEach(ent => newModel.addNode(toGraphNode(ent.entityReference)))
+        .value();
+
+    // relationships
+    _.chain(entityNodes)
+        .filter(ent => _.includes(["MEASURABLE", "CHANGE_INITIATIVE", "DATA_TYPE"], ent.entityReference.kind))
+        .forEach(ent => newModel.addRelationship(toGraphNode(ent.entityReference)))
+        .value();
+
+    // flows
+    _.chain(entityNodes)
         .filter(node => node.entityReference.kind === "LOGICAL_DATA_FLOW")
         .map(node => logicalFlowsById[node.entityReference.id])
         .filter(logicalFlow => logicalFlow != null)
-        .map(logicalFlow => {
-            return {
-                command: "ADD_FLOW",
-                payload: Object.assign({}, logicalFlow, {kind: "LOGICAL_DATA_FLOW"} )
-            };
-        })
+        .map(f => Object.assign(f, {kind: "LOGICAL_DATA_FLOW"}))
+        .forEach(f => newModel.addFlow(toGraphFlow(f)))
         .value();
 
-    const nodeCommands = _
-        .chain(entityNodes)
+    // decorations (physical flows)
+    _.chain(physicalFlows)
+        .map(pf => ({
+            ref: {
+                kind: "LOGICAL_DATA_FLOW",
+                id: pf.logicalFlowId
+            },
+            decoration: {
+                kind: "PHYSICAL_FLOW",
+                id: pf.id
+            }
+        }))
+        .forEach(d => newModel.addDecoration(d))
+        .value();
+
+    // positioning
+    _.chain(layoutData.positions)
+        .map((p, k) => ({
+            id: k,
+            dx: p.x,
+            dy: p.y
+        }))
+        .forEach(p => positions.move(p))
+        .value();
+
+
+    _.chain(entityNodes)
         .filter(ent => _.includes(["APPLICATION", "ACTOR"], ent.entityReference.kind))
-        .map(ent => {
-            return {
-                command: "ADD_NODE",
-                payload: {
-                    id: ent.entityReference.id,
-                    kind: ent.entityReference.kind,
-                    name: ent.entityReference.name,
-                    isNotable: ent.isNotable
-                }
-            }
+        .filter(n => {
+            const hasPosition = layoutData.positions[toGraphId(n.entityReference)];
+            return !hasPosition;
         })
+        .forEach(n => positions.move({
+            id: toGraphId(n.entityReference),
+            dx: Math.random() * 1000,
+            dy: Math.random() * 1000}))
+        .value()
+
+    // annotations
+    _.chain(annotations)
+        .map(ann => ({
+            kind: "ANNOTATION",
+            id: ann.annotationId,
+            entityReference: ann.entityReference,
+            note: ann.note,
+        }))
+        .forEach(ann => newModel.addAnnotation(toGraphNode(ann)))
         .value();
 
+    diagramTransform.set(layoutData.diagramTransform);
 
-    const entityRefs = _.map(entityNodes, n => toGraphId(n.entityReference));
-
-    const annotationCommands = _
-        .chain(annotations)
-        .filter(ann => {
-            const annotatedEntityExists = ann.entityReference.kind === "LOGICAL_DATA_FLOW"
-                ? logicalFlowsById[ann.entityReference.id] !== null
-                : _.includes(entityRefs, toGraphId(ann.entityReference));
-
-            if (! annotatedEntityExists) {
-                console.warn("wfdss: WARN - cannot attach annotation to missing element: ", ann)
-            }
-            return annotatedEntityExists;
-        })
-        .map(ann => {
-            return {
-                command: "ADD_ANNOTATION",
-                payload: {
-                    kind: "ANNOTATION",
-                    id: ann.annotationId,
-                    entityReference: ann.entityReference,
-                    note: ann.note,
-                }
-            };
-        })
-        .value();
-
-    const decorationCommands = _.map(physicalFlows, pf => {
-        return {
-            command: "ADD_DECORATION",
-            payload: {
-                ref: {
-                    kind: "LOGICAL_DATA_FLOW",
-                    id: pf.logicalFlowId
-                },
-                decoration: {
-                    kind: "PHYSICAL_FLOW",
-                    id: pf.id
-                }
-            }
-        }
-    });
-
-    const moveCommands = _.map(
-        layoutData.positions,
-        (p, k) => {
-            return {
-                command: "MOVE",
-                payload: {
-                    id: k,
-                    dx: p.x,
-                    dy: p.y
-                }
-            }
-        });
-
-    const transformCommands = [{
-        command: "TRANSFORM_DIAGRAM",
-        payload: layoutData.diagramTransform
-    }];
-
-    const titleCommands = [{
-        command: "SET_TITLE",
-        payload: diagram.name
-    }];
-
-    const descriptionCommands = [{
-        command: "SET_DESCRIPTION",
-        payload: diagram.description
-    }];
-
-    commandProcessor(nodeCommands);
-    commandProcessor(flowCommands);
-    commandProcessor(annotationCommands);
-    commandProcessor(moveCommands);
-    commandProcessor(transformCommands);
-    commandProcessor(decorationCommands);
-    commandProcessor(titleCommands);
-    commandProcessor(descriptionCommands);
+    dirty.set(false);
 }
 
-
-function addDecoration(payload, model) {
-    const refId = toGraphId(payload.ref);
-    const decorationNode = toGraphNode(payload.decoration);
-    const currentDecorations = model.decorations[refId] || [];
-    const existingIds = _.map(currentDecorations, "id");
-    if (_.includes(existingIds, decorationNode.id)) {
-        console.log("Ignoring request to add duplicate decoration");
-    } else {
-        model.decorations[refId] = _.concat(currentDecorations, [decorationNode]);
-    }
-}
-
-
-function removeDecoration(payload, model) {
-    const refOfRemovedDecoration = toGraphId(payload.ref);
-    const decorationNodeToRemove = toGraphNode(payload.decoration);
-    const currentDecorations = model.decorations[refOfRemovedDecoration] || [];
-    const existingIds = _.map(currentDecorations, "id");
-    if (_.includes(existingIds, decorationNodeToRemove.id)) {
-        model.decorations[refOfRemovedDecoration] = _.reject(
-            currentDecorations,
-            d => d.id === decorationNodeToRemove.id);
-    } else {
-        console.log("Ignoring request to removed unknown decoration");
-    }
-}
 
 
 export function service(
@@ -273,46 +122,29 @@ export function service(
     flowDiagramAnnotationStore,
     flowDiagramEntityStore,
     logicalFlowStore,
-    physicalFlowStore)
+    physicalFlowStore,
+    measurableRatingStore,
+    flowDiagramOverlayGroupStore)
 {
 
     const reset = () => {
-        state = _.cloneDeep(initialState);
-        if (listener) listener(state);
+        newModel.reset();
+        overlay.reset();
+        positions.reset();
+        dirty.set(false);
     };
 
-    const save = () => {
-        const cmd = prepareSaveCmd(state);
-        return flowDiagramStore.save(cmd)
-            .then(id => {
-                state.diagramId = id;
-                state.dirty = false;
-                return id;
-            });
-    };
-
-    const updateName = () => {
-        const cmd = {
-            newName: state.model.title
-        };
-        return flowDiagramStore.updateName(state.diagramId, cmd);
-    };
-
-    const updateDescription = () => {
-        const cmd = {
-            newDescription: state.model.description
-        };
-        return flowDiagramStore.updateDescription(state.diagramId, cmd);
-    };
 
     const addMissingEntityNodes = function (diagramId, entityNodes = [], applications = []) {
-        const appEntityIds = _.chain(entityNodes)
+        const appEntityIds = _
+            .chain(entityNodes)
             .filter(e => e.entityReference.kind === "APPLICATION")
             .map(e => e.entityReference.id)
             .value();
 
 
-        const missingEntityNodes = _.chain(applications)
+        const missingEntityNodes = _
+            .chain(applications)
             .filter(a => !_.includes(appEntityIds, a.id))
             .map(a => ({
                 diagramId,
@@ -333,7 +165,6 @@ export function service(
         };
 
         reset();
-        state.diagramId = id;
 
         const promises = [
             applicationStore.findBySelector(diagramSelector),
@@ -341,208 +172,43 @@ export function service(
             flowDiagramAnnotationStore.findByDiagramId(id),
             flowDiagramEntityStore.findByDiagramId(id),
             logicalFlowStore.findBySelector(diagramSelector),
-            physicalFlowStore.findBySelector(diagramSelector)
+            physicalFlowStore.findBySelector(diagramSelector),
+            flowDiagramOverlayGroupStore.findOverlaysByDiagramId(id)
         ];
 
         return $q
             .all(promises)
-            .then(([applications, diagram, annotations, entityNodes, logicalFlows, physicalFlows]) => {
-                state.detail.applicationsById = _.keyBy(applications, "id");
-                const allEntityNodes = addMissingEntityNodes(diagram.id, entityNodes, applications);
-                restoreDiagram(processCommands, diagram, annotations, allEntityNodes, logicalFlows, physicalFlows);
-                state.dirty = false;
+            .then(([applications, diagram, annotations, entityNodes, logicalFlows, physicalFlows, overlayEntries]) => {
+                if(!_.isNil(diagram)) {
+
+                    const allEntityNodes = addMissingEntityNodes(diagram.id, entityNodes, applications);
+
+                    restoreDiagram(diagram, annotations, allEntityNodes, logicalFlows, physicalFlows);
+
+                    // store on state the list of groups to be shown
+                    const overlayPromises = _.map(
+                        overlayEntries,
+                        overlay => applicationStore
+                            .findBySelector(mkSelectionOptions(overlay.entityReference))
+                            .then(r => Object.assign(
+                                {},
+                                overlay,
+                                {
+                                    kind: "OVERLAY",
+                                    groupRef: toGraphId({id: overlay.overlayGroupId, kind: "GROUP"}),
+                                    applicationIds: _.map(r, d => d.id)
+                                })));
+
+                    $q
+                        .all(overlayPromises)
+                        .then((overlaysWithApps) => overlaysWithApps.forEach(o => overlay.addOverlay(o)));
+                }
             })
-            .then(() => getState());
+            .then(() => dirty.set(false));
     };
 
-    const processCommand = (state, commandObject) => {
-        //console.log("wFDSS - processing command: ", commandObject, state);
-        const payload = commandObject.payload;
-        const model = state.model;
-        switch (commandObject.command) {
-            case "TRANSFORM_DIAGRAM":
-                state = _.defaultsDeep({}, { layout: { diagramTransform : payload }}, state);
-                break;
-
-            case "SET_TITLE":
-                model.title = payload;
-                break;
-
-            case "SET_DESCRIPTION":
-                model.description = payload;
-                break;
-
-            /* MOVE
-                payload = { dx, dy, id, refId? }
-                - dx = delta x
-                - dy = delta y
-                - id = identifier of item to move
-                - refId? = if specified, move is relative to the current position of this item
-             */
-            case "MOVE":
-                const startPosition = payload.refId
-                    ? positionFor(state, payload.refId)
-                    : positionFor(state, payload.id);
-                const endPosition = positionFor(state, payload.id);
-                endPosition.x = startPosition.x + payload.dx;
-                endPosition.y = startPosition.y + payload.dy;
-                break;
-
-            /* UPDATE_ANNOTATION
-                payload = { note, id }
-                - note = text to use in the annotation
-                - id = annotation identifier
-             */
-            case "UPDATE_ANNOTATION":
-                model.annotations = _.map(
-                    model.annotations,
-                    ann =>{
-                        if (ann.id !== payload.id) {
-                            return ann;
-                        } else {
-                            const updatedAnn = Object.assign({}, ann);
-                            updatedAnn.data.note = payload.note;
-                            return updatedAnn;
-                        }
-                    });
-                break;
-
-            case "ADD_ANNOTATION":
-                const annotationNode = toGraphNode(payload);
-                const existingAnnotationIds = _.map(model.annotations, "id");
-                if (_.includes(existingAnnotationIds, payload.id)) {
-                    console.log("Ignoring request to re-add annotation", payload);
-                } else {
-                    model.annotations = _.concat(model.annotations || [], [ annotationNode ]);
-                }
-                break;
-
-            case "ADD_NODE":
-                const graphNode = toGraphNode(payload);
-                const existingNodeIds = _.map(model.nodes, "id");
-                if (_.includes(existingNodeIds, graphNode.id)) {
-                    console.log("Ignoring request to re-add node", payload);
-                } else {
-                    model.nodes = _.concat(model.nodes || [], [ graphNode ]);
-                    listener(state);
-                }
-                if (graphNode.data.kind === "APPLICATION" && !state.detail.applicationsById[graphNode.data.id]) {
-                    // load full app detail
-                    applicationStore
-                        .getById(graphNode.data.id)
-                        .then(app => state.detail.applicationsById[graphNode.data.id] = app)
-                        .then(() => listener(state));
-                }
-                break;
-
-            case "ADD_FLOW":
-                const graphFlow = toGraphFlow(payload);
-                const existingFlowIds = _.map(model.flows, "id");
-                if (_.includes(existingFlowIds, graphFlow.id)) {
-                    console.log("Ignoring request to add duplicate flow", payload);
-                } else {
-                    model.flows = _.concat(model.flows || [], [graphFlow]);
-                }
-                break;
-
-            case "REMOVE_FLOW":
-                model.annotations = _.reject(
-                    model.annotations,
-                    a => toGraphId(a.data.entityReference) === payload.id);
-                model.flows = _.reject(model.flows, f => f.id === payload.id);
-                break;
-
-            case "ADD_DECORATION":
-                addDecoration(payload, model);
-                break;
-
-            case "REMOVE_DECORATION":
-                removeDecoration(payload, model);
-                break;
-
-            case "REMOVE_NODE":
-                const flowIdsToRemove = _.chain(model.flows)
-                    .filter(f => f.source === payload.id || f.target === payload.id)
-                    .map("id")
-                    .value();
-                model.flows = _.reject(model.flows, f => _.includes(flowIdsToRemove, f.id));
-                model.nodes = _.reject(model.nodes, n => n.id === payload.id);
-                model.annotations = _.reject(
-                    model.annotations,
-                    a => {
-                        const annotationEntityRef = toGraphId(a.data.entityReference);
-                        const isDirectAnnotation = annotationEntityRef === payload.id;
-                        const isFlowAnnotation = _.includes(flowIdsToRemove, annotationEntityRef);
-                        return isDirectAnnotation || isFlowAnnotation;
-                    });
-                _.forEach(flowIdsToRemove, id => model.decorations[id] = []);
-                break;
-
-            case "REMOVE_ANNOTATION":
-                model.annotations = _.reject(model.annotations, a => a.id === payload.id );
-                break;
-
-            case "SET_POSITION":
-                state.layout.positions[payload.id] = { x: payload.x, y: payload.y };
-                break;
-
-            case "SHOW_LAYER":
-                state.visibility.layers[payload] = true;
-                break;
-
-            case "HIDE_LAYER":
-                state.visibility.layers[payload] = false;
-                break;
-
-            default:
-                console.log("WFD: unknown command", commandObject);
-                break;
-        }
-        state.dirty = true;
-        return state;
-    };
-
-    // used to notify listeners of state changes
-    let listener = () => {};
-
-    const processCommands = (commands = []) => {
-        state = _.reduce(commands, processCommand, state);
-        if (listener) listener(state);
-    };
-
-
-    const getState = () => Object.assign({}, state);
-
-    const onChange = (callback) => listener = callback;
-
-    const getAllEntities = () => {
-        const toRef = d => ({ kind: d.data.kind, id: d.data.id });
-        const nodes = _.map(state.model.nodes, toRef);
-        const flows = _.map(state.model.flows, toRef);
-        const decorations = _
-            .chain(state.model.decorations)
-            .values()
-            .flatten()
-            .map(toRef)
-            .value();
-
-        return _.concat(
-            nodes,
-            flows,
-            decorations);
-    };
-
-    const isDirty = () => state.dirty;
 
     return {
-        processCommands,
-        getState,
-        getAllEntities,
-        onChange,
-        isDirty,
-        save,
-        updateName,
-        updateDescription,
         load,
         reset
     };
@@ -556,7 +222,9 @@ service.$inject = [
     "FlowDiagramAnnotationStore",
     "FlowDiagramEntityStore",
     "LogicalFlowStore",
-    "PhysicalFlowStore"
+    "PhysicalFlowStore",
+    "MeasurableRatingStore",
+    "FlowDiagramOverlayGroupStore"
 ];
 
 

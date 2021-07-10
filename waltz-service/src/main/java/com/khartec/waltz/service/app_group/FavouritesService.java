@@ -68,16 +68,16 @@ public class FavouritesService {
 
 
     public AppGroup getFavouritesGroup(String username){
-        return appGroupDao.findFavouritesGroupByOwner(username);
+        return appGroupDao.getFavouritesGroupForOwner(username);
     }
 
 
-    public Collection<AppGroupEntry> getFavouriteGroupEntries(String username) {
+    public Collection<AppGroupEntry> findFavouriteGroupEntries(String username) {
 
-        AppGroup favouritesGroup = appGroupDao.findFavouritesGroupByOwner(username);
+        AppGroup favouritesGroup = appGroupDao.getFavouritesGroupForOwner(username);
 
         if (favouritesGroup != null) {
-            return appGroupEntryDao.getEntriesForGroup(favouritesGroup.id().get());
+            return appGroupEntryDao.findEntriesForGroup(favouritesGroup.id().get());
         } else {
             return Collections.emptyList();
         }
@@ -86,7 +86,7 @@ public class FavouritesService {
 
     public Collection<AppGroupEntry> addApplication(String username, long applicationId) throws InsufficientPrivelegeException {
 
-        AppGroup favouritesGroup = appGroupDao.findFavouritesGroupByOwner(username);
+        AppGroup favouritesGroup = appGroupDao.getFavouritesGroupForOwner(username);
 
         Long groupId;
 
@@ -104,7 +104,7 @@ public class FavouritesService {
 
         ImmutableAppGroup favouritesGroup = ImmutableAppGroup.builder()
                 .name(format("Favourite apps for: %s", username))
-                .externalId("FAVOURITE")
+                .externalId(format("FAVOURITE-%s", username.toUpperCase()))
                 .description("Favourite applications for group owner")
                 .appGroupKind(AppGroupKind.PRIVATE)
                 .isFavouriteGroup(true)
@@ -121,7 +121,7 @@ public class FavouritesService {
 
 
     public Collection<AppGroupEntry> removeApplication(String username, long applicationId) throws InsufficientPrivelegeException {
-        AppGroup favouritesGroup = appGroupDao.findFavouritesGroupByOwner(username);
+        AppGroup favouritesGroup = appGroupDao.getFavouritesGroupForOwner(username);
         return appGroupService.removeApplication(username, favouritesGroup.id().get(), applicationId);
     }
 

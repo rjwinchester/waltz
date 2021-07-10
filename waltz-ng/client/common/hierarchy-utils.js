@@ -25,12 +25,19 @@ import _ from "lodash";
  */
 export function prepareSearchNodes(nodes = [],
                                    attr = "name",
-                                   parentKey = "parentId") {
+                                   parent = "parentId") {
+
     const nodesById = _.keyBy(nodes, "id");
 
     const attrFn = _.isString(attr)
         ? n => n[attr]
         : attr;
+
+
+    const parentFn = _.isString(parent)
+        ? n => n[parent]
+        : parent;
+
 
     return _.map(nodes, n => {
         let ptr = n;
@@ -39,7 +46,7 @@ export function prepareSearchNodes(nodes = [],
         while (ptr) {
             nodePath.push(ptr);
             searchStr += (attrFn(ptr) || "") + " ";
-            const parentId = ptr[parentKey];
+            const parentId = parentFn(ptr);
             ptr = nodesById[parentId];
         }
         return {
@@ -112,6 +119,12 @@ export function populateParents(nodes, parentsAsRefs = true) {
 }
 
 
+/**
+ *
+ * @param nodes - flat list of nodes with `id` and `parentId` attributes
+ * @param parentsAsRefs - `true` if parent should be an object, false if parent should be the identifier
+ * @returns {unknown[]}
+ */
 export function buildHierarchies(nodes, parentsAsRefs = true) {
     // only give back root element/s
     return _.reject(populateParents(nodes, parentsAsRefs), n => n.parent);
